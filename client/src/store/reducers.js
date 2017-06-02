@@ -102,8 +102,24 @@ const moveState = (state = Immutable({
   message: ' reducer: moveState message ',
   fromPosition: '',
   selectedPiece: '',
+  error: '',
+  open: false,
 }), action) => {
   switch (action.type) {
+    case types.DISPLAY_ERROR:
+      return Immutable({
+        ...state,
+        message: `ERROR: ${action.error}`,
+        error: action.error,
+        open: true,
+      });
+    case types.CLEAR_ERROR:
+      return Immutable({
+        ...state,
+        message: 'cleared error',
+        error: '',
+        open: false,
+      });
     case types.INVALID_SELECTION:
       return Immutable({
         ...state,
@@ -123,17 +139,23 @@ const moveState = (state = Immutable({
         selectedPiece: '',
         message: 'Selected: N/A',
       });
+    case types.COLOR_MOUSE_OVER: {
+      return Immutable({
+        ...state,
+        fromPosition: '',
+        selectedPiece: '',
+      });
+    }
     case types.MOVE_PIECE: {
       const cols = 'abcdefgh';
       const from = cols[action.fromPosition[1]] + (8 - action.fromPosition[0]);
       const to = cols[action.coordinates[1]] + (8 - action.coordinates[0]);
-      // const from = '';
-      // const to = '';
       return Immutable({
         ...state,
         fromPosition: '',
         selectedPiece: '',
         message: `Move: ${from}-${to}`,
+        error: '',
       });
     }
     case types.CAPTURE_PIECE: {
@@ -169,7 +191,7 @@ const userState = (state = Immutable({
       return Immutable({
         ...state,
         playerB: action.player.data.display,
-      })
+      });
     }
     case types.GET_REQUEST_FAILURE: {
       return Immutable({
@@ -183,18 +205,35 @@ const userState = (state = Immutable({
         room: action.roomInfo.room,
         playerB: action.roomInfo.playerB,
         playerW: action.roomInfo.playerW,
-      })
+      });
     }
     default:
       return state;
   }
 };
 
+const squareState = (state = Immutable({
+  color: 'default',
+}), action) => {
+  switch (action.type) {
+    case types.COLOR_SQUARE: {
+      return Immutable({
+        ...state,
+        color: action.color,
+      });
+    }
+    default:
+      return state;
+  }
+};
+
+
 const rootReducer = combineReducers({
   gameState,
   boardState,
   moveState,
   userState,
+  squareState,
 });
 
 export default rootReducer;

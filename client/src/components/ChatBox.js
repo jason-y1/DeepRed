@@ -15,7 +15,7 @@ class ChatBox extends Component {
 	submit (info) {
     info.preventDefault();
 		// reassign state.user as current user
-		console.log('========>',this.userState)
+		
     this.props.sendMessage(this.state.user + ': ' + this.state.message)
 		this.state.message = '';
   }
