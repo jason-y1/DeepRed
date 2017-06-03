@@ -17,10 +17,10 @@ import * as types from './actionTypes';
 const gameState = (state = Immutable({
   playerColor: 'W',
   gameId: '',
-  clock_W: '',
-  clock_B: '',
-  player_W: '',
-  player_B: '',
+  clockW: '',
+  clockB: '',
+  pausedW: false,
+  pausedB: false,
   capturedPiecesBlack: [],
   capturedPiecesWhite: [],
   gameTurn: 'W',
@@ -51,11 +51,22 @@ const gameState = (state = Immutable({
       newState[capturedPiecesArray] = state[capturedPiecesArray].concat(capturedPiece);
       return Immutable(newState);
     }
+    case types.PAUSE_TIMER_B: {
+      return Immutable({
+        ...state,
+        pausedW: true,
+      });
+    }
+    case types.PAUSE_TIMER_W: {
+      return Immutable({
+        ...state,
+        pausedW: true,
+      });
     case types.SEND_MESSAGE: {
       return Immutable({
         ...state,
         messages: state.messages.concat(action.msg)
-      })
+      });
     }
     default:
       return state;
@@ -139,13 +150,6 @@ const moveState = (state = Immutable({
         selectedPiece: '',
         message: 'Selected: N/A',
       });
-    case types.COLOR_MOUSE_OVER: {
-      return Immutable({
-        ...state,
-        fromPosition: '',
-        selectedPiece: '',
-      });
-    }
     case types.MOVE_PIECE: {
       const cols = 'abcdefgh';
       const from = cols[action.fromPosition[1]] + (8 - action.fromPosition[0]);
@@ -213,13 +217,15 @@ const userState = (state = Immutable({
 };
 
 const squareState = (state = Immutable({
-  color: 'default',
+  color: null,
+  hover: [],
 }), action) => {
   switch (action.type) {
     case types.COLOR_SQUARE: {
       return Immutable({
         ...state,
         color: action.color,
+        hover: action.hover,
       });
     }
     default:
@@ -227,6 +233,26 @@ const squareState = (state = Immutable({
   }
 };
 
+const controlState = (state = Immutable({
+  pauseOpen: false,
+}), action) => {
+  switch (action.type) {
+    case types.PAUSE_DIALOG_OPEN: {
+      return Immutable({
+        ...state,
+        pauseOpen: true,
+      });
+    }
+    case types.PAUSE_DIALOG_CLOSE: {
+      return Immutable({
+        ...state,
+        pauseOpen: false,
+      });
+    }
+    default:
+      return state;
+  }
+};
 
 const rootReducer = combineReducers({
   gameState,
@@ -234,6 +260,8 @@ const rootReducer = combineReducers({
   moveState,
   userState,
   squareState,
+  controlState,
 });
 
 export default rootReducer;
+
