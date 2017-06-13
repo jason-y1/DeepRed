@@ -1,97 +1,200 @@
 import React, { Component } from 'react';
 import { connect } from 'react-redux';
+import FlatButton from 'material-ui/FlatButton';
+import RaisedButton from 'material-ui/RaisedButton';
 
-import { invalidSelection, selectPiece, colorSquare } from '../store/actions';
+import { invalidSelection, selectPiece, colorSquare, displayError, openPromotionDialog, closePromotionDialog, closeCheckDialog, closeWinnerDialog } from '../store/actions';
+
+import Alert from './Alert';
 import './css/Board.css';
 
 class Board extends Component {
   constructor(props) {
     super(props);
-    this.state = {
-    };
-
     this.onClick = this.onClick.bind(this);
+    this.handlePromotion = this.handlePromotion.bind(this);
     this.onMouseEnter = this.onMouseEnter.bind(this);
     this.onMouseLeave = this.onMouseLeave.bind(this);
+    this.selectSquareClass = this.selectSquareClass.bind(this);
+    this.handleCloseCheckDialog = this.handleCloseCheckDialog.bind(this);
+    this.handleCloseWinnerDialog = this.handleCloseWinnerDialog.bind(this);
   }
 
-  componentDidMount() {
-    // const { dispatch } = this.props;
-    // dispatch(fetchGame());
-  }
+  onClick(dest) {
+    const {
+      dispatch, board, origin, selectedPiece, room, gameTurn,
+      isWhite, attemptMove, checkLegalMoves, boolBoard, gameMode,
+    } = this.props;
 
-  onClick(coordinates) {
-    const { dispatch, board, fromPosition, selectedPiece, attemptMove, room } = this.props;
-
-    const x = coordinates[0];
-    const y = coordinates[1];
-    const selection = board[x][y];
-    console.log('SELECTION: ', selection);
-    // If no piece is currently selected
-    if (selectedPiece === '') {
-      // && selection[0] === playerColor
-      if (selection) {
-        dispatch(selectPiece(selection, coordinates));
-        dispatch(colorSquare('board-col green', coordinates));
-      } else {
-        dispatch(invalidSelection(coordinates));
-      }
-      // If a piece is already selected
-      /* NOTE: CHECK FOR VALID MOVE REQUIRED HERE    */
-      // if (selection === null)
+    if ((isWhite && gameTurn === 'B') || (!isWhite && gameTurn === 'W')) {
+      dispatch(displayError('Not your turn.'));
     } else {
-      attemptMove(selectedPiece, fromPosition, coordinates, selection, room);
-    // } else if (selectedPiece[0] === board[x][y][0]) {
-    //   dispatch(invalidSelection(coordinates));
-    // } else {
-    //   const capturedPiece = selection;
-    //   dispatch(capturePiece(selectedPiece, fromPosition, coordinates, capturedPiece));
-    }
-  }
-
-  onMouseEnter(coordinates) {
-    const { dispatch, fromPosition, selectedPiece, room, checkLegalMove } = this.props;
-    if (selectedPiece) {
-      checkLegalMove(fromPosition, coordinates, room);
-    }
-  }
-
-  onMouseLeave(coordinates) {
-    const { dispatch, fromPosition } = this.props;
-    if (fromPosition) {
-      if (fromPosition[0] !== coordinates[0] && fromPosition[1] !== coordinates[1]) {
-        dispatch(colorSquare(null, coordinates));
+      const selection = board[dest[0]][dest[1]];
+      console.log('SELECTION: ', selection);
+      // If no piece is currently selected
+      if (selectedPiece === '') {
+        if (selection) {
+          dispatch(selectPiece(selection, dest));
+          dispatch(colorSquare('board-col green', dest));
+          dispatch(displayError(''));
+          checkLegalMoves(dest, room);
+        } else {
+          dispatch(invalidSelection(dest));
+        }
+      } else if (selectedPiece === 'WP' && dest[0] === 0 && boolBoard[dest[0]][dest[1]]) {
+        dispatch(openPromotionDialog(dest));
+      } else if (selectedPiece === 'BP' && dest[0] === 7 && boolBoard[dest[0]][dest[1]]) {
+        dispatch(openPromotionDialog(dest));
+      } else {
+        attemptMove(origin, dest, selection, room, null, gameMode);
       }
     }
-
-    // if (selectedPiece) {
-    //   checkLegalMove(fromPosition, coordinates, room);
-    // }
   }
 
-  getImage(CP) {
-    return <img className="piece-img" src={`/assets/${CP}.png`} alt={''} />;
+  onMouseEnter(dest) {
+    const { dispatch, selectedPiece, boolBoard } = this.props;
+    if (selectedPiece) {
+      const bool = boolBoard[dest[0]][dest[1]];
+      let color = 'board-col red';
+      if (bool) {
+        color = 'board-col green';
+      }
+      dispatch(colorSquare(color, dest));
+    }
   }
+
+  onMouseLeave(dest) {
+    const { dispatch, origin } = this.props;
+    if (origin) {
+      if (origin[0] !== dest[0] && origin[1] !== dest[1]) {
+        if ((dest[0] + dest[1]) % 2 === 1) {
+          dispatch(colorSquare('board-col dark', dest));
+        } else {
+          dispatch(colorSquare('board-col dark', dest));
+        }
+      }
+    }
+  }
+
+  handlePromotion(pawnPromoteType) {
+    const { dispatch, board, attemptMove, origin, pawnPromotionCoord, room, gameMode } = this.props;
+    const selection = board[pawnPromotionCoord[0]][pawnPromotionCoord[1]];
+    attemptMove(origin, pawnPromotionCoord, selection, room, pawnPromoteType, gameMode);
+    dispatch(closePromotionDialog());
+  }
+
+  handleCloseCheckDialog() {
+    const { dispatch } = this.props;
+    dispatch(closeCheckDialog());
+  }
+
+  handleCloseWinnerDialog() {
+    const { dispatch } = this.props;
+    dispatch(closeWinnerDialog());
+  }
+
+  selectSquareClass(rowIndex, colIndex) {
+    const { color, hover, origin } = this.props;
+    if ((color && hover[0] === rowIndex && hover[1] === colIndex) ||
+    (origin && (origin[0] === rowIndex && origin[1] === colIndex))) {
+      return color;
+    } else if ((rowIndex + colIndex) % 2 === 1) {
+      return 'board-col dark';
+    }
+    return 'board-col light';
+  }
+
   render() {
-    const { board, color, hover, fromPosition } = this.props;
+    const { board, isWhite, showPromotionDialog, winner, playerInCheck,
+      showCheckDialog, showWinnerDialog } = this.props;
+    const offset = (isWhite) ? 0 : 7;
+
+    const promotionActions = [
+      <FlatButton
+        label="Queen"
+        primary
+        onTouchTap={() => this.handlePromotion('Q')}
+      />,
+      <FlatButton
+        label="Rook"
+        primary
+        keyboardFocused
+        onTouchTap={() => this.handlePromotion('R')}
+      />,
+      <FlatButton
+        label="Knight"
+        primary
+        keyboardFocused
+        onTouchTap={() => this.handlePromotion('N')}
+      />,
+      <FlatButton
+        label="Bishop"
+        primary
+        keyboardFocused
+        onTouchTap={() => this.handlePromotion('B')}
+      />,
+    ];
+
+    const checkActions = [
+      <RaisedButton
+        label="OK"
+        secondary
+        onTouchTap={this.handleCloseCheckDialog}
+      />,
+    ];
+
+    const winnerActions = [
+      <RaisedButton
+        label="Ok"
+        secondary
+        onTouchTap={this.handleCloseWinnerDialog}
+      />,
+    ];
+
     return (
-      <div className="board">
-        {board.map((row, rowIndex) => (
-          <div key={Math.random()} className="board-row">
-            {row.map((col, colIndex) => (
-              <div
-                className={((rowIndex + colIndex) % 2 === 1) ? (((color && (hover[0] === rowIndex && hover[1] === colIndex)) || (fromPosition && ((fromPosition[0] === rowIndex) && (fromPosition[1] === colIndex)))) ? color : 'board-col dark') : (((color && (hover[0] === rowIndex && hover[1] === colIndex)) || (fromPosition && ((fromPosition[0] === rowIndex) && (fromPosition[1] === colIndex)))) ? color : 'board-col light')}
-                key={rowIndex.toString() + colIndex.toString()}
-                onClick={() => this.onClick([rowIndex, colIndex])}
-                onMouseEnter={() => this.onMouseEnter([rowIndex, colIndex])}
-                onMouseLeave={() => this.onMouseLeave([rowIndex, colIndex])}
-              >
-                {this.getImage(col)}
-              </div>),
-            )}
-          </div>
-        ),
-        )}
+      <div>
+        <div className="board">
+          {board.map((row, rowIndex) => (
+            <div key={Math.random()} className="board-row">
+              {row.map((col, colIndex) => (
+                <div
+                  className={this.selectSquareClass(Math.abs(offset - rowIndex),
+                    Math.abs(offset - colIndex))}
+                  key={(Math.abs(offset - rowIndex)).toString() +
+                     (Math.abs(offset - colIndex)).toString()}
+                  role={'button'}
+                  onClick={() => this.onClick([(Math.abs(offset - rowIndex)),
+                     (Math.abs(offset - colIndex))])}
+                  onMouseEnter={() => this.onMouseEnter([(Math.abs(offset - rowIndex)),
+                    (Math.abs(offset - colIndex))])}
+                  onMouseLeave={() => this.onMouseLeave([(Math.abs(offset - rowIndex)),
+                    (Math.abs(offset - colIndex))])}
+                >
+                  <img className="piece-img" src={`/assets/${board[Math.abs(offset - rowIndex)][Math.abs(offset - colIndex)]}.png`} alt={''} />
+                </div>),
+              )}
+            </div>
+          ),
+          )}
+        </div>
+        <Alert
+          className="pauseRequest"
+          title="Please select an upgrade."
+          actions={promotionActions}
+          open={showPromotionDialog}
+        />
+        {/* <Alert
+          className="pauseRequest"
+          title={`${playerInCheck} is in check.`}
+          actions={checkActions}
+          open={showCheckDialog}
+        /> */}
+        <Alert
+          className="pauseRequest"
+          title={`Winner is ${winner}!`}
+          actions={winnerActions}
+          open={showWinnerDialog}
+        />
       </div>
     );
   }
@@ -99,19 +202,31 @@ class Board extends Component {
 
 function mapStateToProps(state) {
   const { gameState, boardState, moveState, userState, squareState } = state;
-  const { playerColor } = gameState;
+  const { playerColor, gameTurn, playerInCheck, winner, showCheckDialog,
+    showWinnerDialog, gameMode } = gameState;
   const { board } = boardState;
-  const { fromPosition, selectedPiece } = moveState;
-  const { room } = userState;
+  const { origin, selectedPiece, boolBoard, pawnPromotionCoord,
+    showPromotionDialog } = moveState;
+  const { room, isWhite } = userState;
   const { color, hover } = squareState;
   return {
     playerColor,
     board,
-    fromPosition,
+    origin,
     selectedPiece,
+    boolBoard,
+    pawnPromotionCoord,
+    showPromotionDialog,
     room,
     color,
     hover,
+    isWhite,
+    gameTurn,
+    playerInCheck,
+    winner,
+    showCheckDialog,
+    showWinnerDialog,
+    gameMode,
   };
 }
 

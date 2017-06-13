@@ -46,7 +46,7 @@ class SettingsDrawer extends Component {
           open={this.state.open}
           onRequestChange={open => this.setState({ open })}
         >
-          <Link to="/settings">
+          <Link to="/profile#">
             <MenuItem
               onTouchTap={this.handleClose}
               leftIcon={<SocialPerson />}
@@ -54,6 +54,24 @@ class SettingsDrawer extends Component {
               User Profile
             </MenuItem>
           </Link>
+          <MenuItem
+            onTouchTap={this.props.sendPauseRequest}
+            leftIcon={<SocialPerson />}
+          >
+            Pause
+          </MenuItem>
+          <MenuItem
+            onTouchTap={this.props.sendResumeRequest}
+            leftIcon={<SocialShare />}
+          >
+            Resume
+          </MenuItem>
+          <MenuItem
+            onTouchTap={this.props.handleSurrender}
+            leftIcon={<SocialShare />}
+          >
+            Surrender
+          </MenuItem>
           <MenuItem
             onTouchTap={this.handleClose}
             leftIcon={<SocialShare />}

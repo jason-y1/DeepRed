@@ -16,7 +16,8 @@ const MobileTearSheet = React.createClass({
     const styles = {
       root: {
         float: 'left',
-        marginBottom: 24,
+        marginTop: '0vw',
+        // marginBottom: '10vw',
         marginRight: 24,
         width: '100%',
         fontSize: '0.5rem',
@@ -26,7 +27,8 @@ const MobileTearSheet = React.createClass({
         border: 'solid 0px #d9d9d9',
         borderBottom: 'none',
         height: this.props.height,
-        maxHeight: 500,
+        minHeight: '30vw',
+        maxHeight: '24vw',
         overflow: 'auto',
       },
 

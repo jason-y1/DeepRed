@@ -5,6 +5,37 @@ import * as types from './actionTypes';
  * Functions that create actions:
  * Actions = { type: TYPE, vars: VALS }
  */
+// gameState actions
+export const updateGameMode = mode => ({
+  type: types.UPDATE_GAME_MODE,
+  mode,
+});
+
+export const updateTimer = roomInfo => ({
+  type: types.UPDATE_TIMER,
+  roomInfo,
+});
+
+export const updateTimerB = timeB => ({
+  type: types.UPDATE_TIMER_B,
+  timeB,
+});
+
+export const updateTimerW = timeW => ({
+  type: types.UPDATE_TIMER_W,
+  timeW,
+});
+
+export const timeInstanceB = ref => ({
+  type: types.TIME_INSTANCE_B,
+  ref,
+});
+
+export const timeInstanceW = ref => ({
+  type: types.TIME_INSTANCE_W,
+  ref,
+});
+
 export const displayError = error => ({
   type: types.DISPLAY_ERROR,
   error,
@@ -13,15 +44,24 @@ export const clearError = () => ({
   type: types.CLEAR_ERROR,
 });
 
-export const invalidSelection = coordinates => ({
+export const invalidSelection = dest => ({
   type: types.INVALID_SELECTION,
-  coordinates,
+  dest,
 });
 
-export const selectPiece = (selectedPiece, coordinates) => ({
+export const selectPiece = (selectedPiece, dest) => ({
   type: types.SELECT_PIECE,
   selectedPiece,
-  coordinates,
+  dest,
+});
+
+export const saveBoolBoard = boolBoard => ({
+  type: types.SAVE_BOOL_BOARD,
+  boolBoard,
+});
+
+export const resetBoolBoard = () => ({
+  type: types.RESET_BOOL_BOARD,
 });
 
 export const unselectPiece = () => ({
@@ -34,19 +74,71 @@ export const colorSquare = (color, hover) => ({
   hover,
 });
 
-export const movePiece = (selectedPiece, fromPosition, coordinates) => ({
-  type: types.MOVE_PIECE,
-  selectedPiece,
-  fromPosition,
-  coordinates,
+// export const movePiece = (fromPosition, dest, gameTurn) => ({
+//   type: types.MOVE_PIECE,
+//   fromPosition,
+//   dest,
+//   gameTurn,
+// });
+//
+// export const capturePiece = (fromPosition, dest, capturedPiece, gameTurn) => ({
+//   type: types.CAPTURE_PIECE,
+//   fromPosition,
+//   dest,
+//   capturedPiece,
+//   gameTurn,
+// });
+//
+// export const castlingMove = (fromPosition, dest, castling, gameTurn) => ({
+//   type: types.CASTLING_MOVE,
+//   fromPosition,
+//   dest,
+//   castling,
+//   gameTurn,
+// });
+//
+// export const enPassantMove = (fromPosition, dest, enPassantCoord, gameTurn) => ({
+//   type: types.EN_PASSANT_MOVE,
+//   fromPosition,
+//   dest,
+//   enPassantCoord,
+//   gameTurn,
+// });
+//
+// export const pawnPromotionMove = (fromPosition, dest, pawnPromotionPiece, gameTurn) => ({
+//   type: types.PAWN_PROMOTION_MOVE,
+//   fromPosition,
+//   dest,
+//   pawnPromotionPiece,
+//   gameTurn,
+// });
+
+export const openPromotionDialog = dest => ({
+  type: types.OPEN_PROMOTION_DIALOG,
+  dest,
 });
 
-export const capturePiece = (selectedPiece, fromPosition, coordinates, capturedPiece) => ({
-  type: types.CAPTURE_PIECE,
-  selectedPiece,
-  fromPosition,
-  coordinates,
-  capturedPiece,
+export const closePromotionDialog = dest => ({
+  type: types.CLOSE_PROMOTION_DIALOG,
+  dest,
+});
+
+export const openCheckDialog = playerInCheck => ({
+  type: types.OPEN_CHECK_DIALOG,
+  playerInCheck,
+});
+
+export const closeCheckDialog = () => ({
+  type: types.CLOSE_CHECK_DIALOG,
+});
+
+export const openWinnerDialog = winner => ({
+  type: types.OPEN_WINNER_DIALOG,
+  winner,
+});
+
+export const closeWinnerDialog = () => ({
+  type: types.CLOSE_WINNER_DIALOG,
 });
 
 export const receiveMove = (query, move) => ({
@@ -66,14 +158,14 @@ export const receiveGame = game => ({
 });
 
 // userState actions
-export const setPlayerW = player => ({
-  type: types.SET_PLAYER_W,
+export const setPlayer = player => ({
+  type: types.SET_PLAYER,
   player,
 });
 
-export const setPlayerB = player => ({
-  type: types.SET_PLAYER_B,
-  player,
+export const setPlayerId = id => ({
+  type: types.SET_PLAYER_ID,
+  id,
 });
 
 export const getRequestFailure = message => ({
@@ -86,23 +178,96 @@ export const updateRoomInfo = roomInfo => ({
   roomInfo,
 });
 
+export const updateAllRooms = allRooms => ({
+  type: types.UPDATE_ALL_ROOMS,
+  allRooms,
+});
+
+export const updateRoomQueue = queue => ({
+  type: types.UPDATE_ROOM_QUEUE,
+  queue,
+});
+
+export const gameWinLose = (winner, loser) => ({
+  type: types.GAME_WIN_LOSE,
+  winner,
+  loser,
+});
+
+export const gameDraw = (player1, player2) => ({
+  type: types.GAME_DRAW,
+  player1,
+  player2,
+});
+
 // controlState actions
-export const pauseTimerB = pausedB => ({
-  type: types.PAUSE_TIMER_B,
-  pausedB,
-});
-
-export const pauseTimerW = pausedW => ({
-  type: types.PAUSE_TIMER_W,
-  pausedW,
-});
-
 export const pauseDialogOpen = () => ({
   type: types.PAUSE_DIALOG_OPEN,
 });
 
 export const pauseDialogClose = () => ({
   type: types.PAUSE_DIALOG_CLOSE,
+});
+
+export const resumeDialogOpen = () => ({
+  type: types.RESUME_DIALOG_OPEN,
+});
+
+export const resumeDialogClose = () => ({
+  type: types.RESUME_DIALOG_CLOSE,
+});
+
+export const cancelPauseDialogOpen = () => ({
+  type: types.CANCEL_PAUSE_DIALOG_OPEN,
+});
+
+export const cancelPauseDialogClose = () => ({
+  type: types.CANCEL_PAUSE_DIALOG_CLOSE,
+});
+
+export const cancelResumeDialogOpen = () => ({
+  type: types.CANCEL_RESUME_DIALOG_OPEN,
+});
+
+export const cancelResumeDialogClose = () => ({
+  type: types.CANCEL_RESUME_DIALOG_CLOSE,
+});
+
+export const updateAlertName = alertName => ({
+  type: types.UPDATE_ALERT_NAME,
+  alertName,
+});
+
+export const announceSurrenderDialogOpen = () => ({
+  type: types.ANNOUNCE_SURRENDER_DIALOG_OPEN,
+});
+
+export const announceSurrenderDialogClose = () => ({
+  type: types.ANNOUNCE_SURRENDER_DIALOG_CLOSE,
+});
+
+export const selectGameModeOpen = () => ({
+  type: types.SELECT_GAME_MODE_OPEN,
+});
+
+export const selectGameModeClose = () => ({
+  type: types.SELECT_GAME_MODE_CLOSE,
+});
+
+export const selectRoomOpen = () => ({
+  type: types.SELECT_ROOM_OPEN,
+});
+
+export const selectRoomClose = () => ({
+  type: types.SELECT_ROOM_CLOSE,
+});
+
+export const selectSideOpen = () => ({
+  type: types.SELECT_SIDE_OPEN,
+});
+
+export const selectSideClose = () => ({
+  type: types.SELECT_SIDE_CLOSE,
 });
 
 // other requests
@@ -115,7 +280,12 @@ export const fetchGame = () => (dispatch) => {
     );
 };
 
-export const sendMsg = msg => ({
-  type: types.SEND_MESSAGE,
+export const sendMsgLocal = msg => ({
+  type: types.SEND_MESSAGE_LOCAL,
   msg,
-})
+});
+
+export const sendMsgGlobal = msg => ({
+  type: types.SEND_MESSAGE_GLOBAL,
+  msg,
+});

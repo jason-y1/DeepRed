@@ -1,63 +1,44 @@
 import React, { Component } from 'react';
-import ReactCountdownClock from 'react-countdown-clock';
 import { connect } from 'react-redux';
-import { pauseTimerB, pauseTimerW } from '../store/actions';
-import './css/Clock.css';
 
 class Clock extends Component {
   constructor(props) {
     super(props);
-    this.readyForGame = this.readyForGame.bind(this);
   }
-
-  readyForGame(e) {
-    const {dispatch, pausedW, pausedB, gameTurn, clockW, clockB} = this.props;
-    console.log('hello from ready for game: ', this.props.color);
-    if (this.props.color === 'Black') {
-      console.log('black triggered');
-      dispatch(pauseTimerB(pausedB));
-    } else if (this.props.color === 'White') {
-      console.log('white triggered');
-      dispatch(pauseTimerB(pausedW));
-    }
-  }
-
   render() {
-    const { sendPauseRequest } = this.props;
+    const { minB, minW, secB, secW } = this.props;
+
     return (
-      <div>
-        <ReactCountdownClock
-          seconds={600}
-          color="#000"
-          alpha={0.8}
-          size={100}
-          paused={false}
-          onClick={sendPauseRequest}
-        />
+      <div className="clock-class" >
+        <p>
+          {this.props.color === 'Black' ? (`0${minB}`).slice(-2) : (`0${minW}`).slice(-2)} : {this.props.color === 'Black' ? (`0${secB}`).slice(-2) : (`0${secW}`).slice(-2)}
+        </p>
       </div>
     );
   }
 }
 
 function mapStateToProps(state) {
-  const { gameState, userState } = state;
+  const { gameState } = state;
   const {
-    pausedB,
-    pausedW,
-    moveHistory,
-    capturedPiecesBlack,
-    capturedPiecesWhite,
+    milisecB,
+    milisecW,
+    secB,
+    secW,
+    minB,
+    minW,
+    timeB,
+    timeW,
   } = gameState;
-  const {
-    room,
-  } = userState;
   return {
-    room,
-    pausedB,
-    pausedW,
-    moveHistory,
-    capturedPiecesBlack,
-    capturedPiecesWhite,
+    milisecB,
+    milisecW,
+    secB,
+    secW,
+    minB,
+    minW,
+    timeB,
+    timeW,
   };
 }
 

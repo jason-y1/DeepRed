@@ -2,12 +2,83 @@ const expect = require('chai').expect;
 
 const deepRed = require('../chess/deepRed');
 
-describe('【Deep Red】 evaluate available possible moves: ', () => {
-  const getAvailableMovesWhite = deepRed.getAvailableMovesWhite;
+const { whiteIsChecked, piecesAttackeByBlack } = deepRed.attacksBlack;
+const { blackIsChecked, piecesAttackedByWhite } = deepRed.attacksWhite;
+const { findPiecePosition, mutateBoard } = deepRed.basic;
+const { showMovesByPiece, showEvaluatedMoves } = deepRed.display;
+const {
+  isCheckmateBlack, isCheckmateWhite,
+  isStalemateBlack, isStalemateWhite,
+  whiteCanMove, blackCanMove,
+} = deepRed.endGameChecks;
+const { getAllMovesBlack } = deepRed.movesBlack;
+const { getAllMovesWhite } = deepRed.movesWhite;
+const { getSafeMovesWhite, getSafeMovesBlack } = deepRed.safeMoves;
+const { getAllMovesWithSpecialWhite, getAllMovesWithSpecialBlack } = deepRed.specialMoves;
+
+const pieceState = {
+  hasMovedWK: false,
+  hasMovedWKR: false,
+  hasMovedWQR: false,
+  hasMovedBK: false,
+  hasMovedBKR: false,
+  hasMovedBQR: false,
+  canEnPassantW: '',
+  canEnPassantB: '',
+};
+
+describe('Find Piece Position', () => {
+
+  const board = [
+    ['BR', 'BN', 'BB', 'BQ', 'BK', 'BB', 'BN', 'BR'],
+    ['BP', 'BP', 'BP', 'BP', 'BP', 'BP', 'BP', 'BP'],
+    [null, null, null, null, null, null, null, null],
+    [null, null, null, null, null, null, null, null],
+    [null, null, null, null, null, null, null, null],
+    [null, null, null, null, null, null, null, null],
+    ['WP', 'WP', 'WP', 'WP', 'WP', 'WP', 'WP', 'WP'],
+    ['WR', 'WN', 'WB', 'WQ', 'WK', 'WB', 'WN', 'WR'],
+  ];
+
+  it('findPiecePosition should exist and should be function', () => {
+    expect(findPiecePosition).to.be.a('function');
+  });
+
+  it('should return empty array if piece position is not found captured', () => {
+    expect(findPiecePosition('QQ', board)).to.eql([]);
+    expect(findPiecePosition('WE', board)).to.eql([]);
+    expect(findPiecePosition('BA', board)).to.eql([]);
+  });
+
+  it('should find the kings', () => {
+    expect(findPiecePosition('WK', board)).to.eql([[7, 4]]);
+    expect(findPiecePosition('BK', board)).to.eql([[0, 4]]);
+
+    const board2 = [
+      ['BR', 'BN', 'BB', null, 'BQ', 'BB', 'BN', 'BR'],
+      ['BP', 'BP', 'BP', 'BP', 'BP', 'BP', 'BP', 'BP'],
+      [null, null, null, null, null, null, null, null],
+      [null, null, null, null, null, 'BK', null, null],
+      [null, 'WK', null, null, null, null, null, null],
+      [null, null, null, null, null, null, null, null],
+      ['WP', 'WP', 'WP', 'WP', 'WP', 'WP', 'WP', 'WP'],
+      ['WR', 'WN', 'WB', null, 'WQ', 'WB', 'WN', 'WR'],
+    ];
+    expect(findPiecePosition('WK', board2)).to.eql([[4, 1]]);
+    expect(findPiecePosition('BK', board2)).to.eql([[3, 5]]);
+  });
+
+  it('should find multiple pieces', () => {
+    expect(findPiecePosition('WR', board)).to.eql([[7, 0], [7, 7]]);
+    expect(findPiecePosition('BR', board)).to.eql([[0, 0], [0, 7]]);
+  });
+});
+
+describe('[Deep Red] evaluate available possible moves: ', () => {
 
   describe('Check available moves for white', () => {
-    it('getAvailableMovesWhite should exist and should be function', () => {
-      expect(getAvailableMovesWhite).to.be.a('function');
+    it('getAllMovesWhite should exist and should be function', () => {
+      expect(getAllMovesWhite).to.be.a('function');
     });
 
     describe('[White pawn movement]', () => {
@@ -42,7 +113,7 @@ describe('【Deep Red】 evaluate available possible moves: ', () => {
           76: [[5, 5], [5, 7]],
           77: [],
         };
-        expect(getAvailableMovesWhite(board)).to.eql(expected);
+        expect(getAllMovesWhite(board)).to.eql(expected);
       });
     });
 
@@ -59,15 +130,15 @@ describe('【Deep Red】 evaluate available possible moves: ', () => {
       ];
 
       it('should not be able to move blocked pawns', () => {
-        expect(getAvailableMovesWhite(board)[63]).to.eql([]);
+        expect(getAllMovesWhite(board)[63]).to.eql([]);
       });
 
       it('should show piece capture moves', () => {
-        let result = getAvailableMovesWhite(board)[62];
+        let result = getAllMovesWhite(board)[62];
         result = result.map(x => JSON.stringify(x));
         expect(result).to.deep.include(JSON.stringify([5, 3]));
 
-        result = getAvailableMovesWhite(board)[64];
+        result = getAllMovesWhite(board)[64];
         result = result.map(x => JSON.stringify(x));
         expect(result).to.deep.include(JSON.stringify([5, 3]));
       });
@@ -76,155 +147,160 @@ describe('【Deep Red】 evaluate available possible moves: ', () => {
     /**
      * TO DO: IMPLEMENT MOVEMENT FOR PIECES
      */
-
   });
 });
 
-describe('End of game checks', () => {
+describe('Mutate Board', () => {
+  const board = [
+    [null, null, null, null, null, null, 'BN', null],
+    [null, null, null, null, null, null, null, 'WP'],
+    [null, null, null, null, null, null, null, null],
+    ['WP', 'BP', null, null, null, null, null, null],
+    [null, null, null, null, null, null, null, null],
+    [null, null, null, null, null, null, null, null],
+    [null, null, null, null, null, null, null, null],
+    ['WR', null, null, null, 'WK', null, null, 'WR'],
+  ];
 
-  describe('[White] End of game checks', () => {
-    const board = [
-      ['BR', 'BN', 'BB', 'BK', 'BQ', 'BB', 'BN', 'BR'],
-      ['BP', 'BP', 'BP', 'BP', 'BP', 'BP', 'BP', 'BP'],
-      [null, null, null, null, null, null, null, null],
-      [null, null, null, null, null, null, null, null],
-      [null, null, null, null, null, null, null, null],
-      [null, null, null, null, null, null, null, null],
-      ['WP', 'WP', 'WP', 'WP', 'WP', 'WP', 'WP', 'WP'],
-      ['WR', 'WN', 'WB', 'WK', 'WQ', 'WB', 'WN', 'WR'],
-    ];
+  const wkCastleBoard = [
+    [null, null, null, null, null, null, 'BN', null],
+    [null, null, null, null, null, null, null, 'WP'],
+    [null, null, null, null, null, null, null, null],
+    ['WP', 'BP', null, null, null, null, null, null],
+    [null, null, null, null, null, null, null, null],
+    [null, null, null, null, null, null, null, null],
+    [null, null, null, null, null, null, null, null],
+    ['WR', null, null, null, null, 'WR', 'WK', null],
+  ];
 
-    const safeBoard = [
-      [null, null, null, null, null, null, null, null],
-      [null, null, null, null, null, null, null, null],
-      [null, null, null, null, null, null, null, null],
-      [null, null, null, null, null, null, null, null],
-      [null, null, null, null, null, null, null, null],
-      [null, null, null, null, null, null, null, null],
-      [null, null, 'BR', null, null, null, null, null],
-      [null, null, null, 'WK', null, null, null, 'BR'],
-    ];
+  const wqCastleBoard = [
+    [null, null, null, null, null, null, 'BN', null],
+    [null, null, null, null, null, null, null, 'WP'],
+    [null, null, null, null, null, null, null, null],
+    ['WP', 'BP', null, null, null, null, null, null],
+    [null, null, null, null, null, null, null, null],
+    [null, null, null, null, null, null, null, null],
+    [null, null, null, null, null, null, null, null],
+    [null, null, 'WK', 'WR', null, null, null, 'WR'],
+  ];
 
-    const checkmateBoard = [
-      [null, null, null, null, null, null, null, null],
-      [null, null, null, null, null, null, null, null],
-      [null, null, null, null, null, null, null, null],
-      [null, null, null, null, null, null, null, null],
-      [null, null, null, null, null, null, null, null],
-      [null, null, null, null, null, null, null, null],
-      ['BR', null, null, null, null, null, null, null],
-      [null, null, null, 'WK', null, null, null, 'BR'],
-    ];
+  const enPassantBoard = [
+    [null, null, null, null, null, null, 'BN', null],
+    [null, null, null, null, null, null, null, 'WP'],
+    [null, 'WP', null, null, null, null, null, null],
+    [null, null, null, null, null, null, null, null],
+    [null, null, null, null, null, null, null, null],
+    [null, null, null, null, null, null, null, null],
+    [null, null, null, null, null, null, null, null],
+    ['WR', null, null, null, 'WK', null, null, 'WR'],
+  ];
 
-    const stalemateBoard = [
-      [null, null, null, null, null, null, null, null],
-      [null, null, null, null, null, null, null, null],
-      [null, null, null, null, null, null, null, null],
-      [null, null, null, null, null, null, null, null],
-      [null, null, 'BB', null, null, null, null, null],
-      [null, null, 'BQ', null, null, null, null, null],
-      [null, null, null, null, null, null, null, null],
-      [null, null, null, 'WK', null, null, null, null],
-    ];
+  const pawnPromotionAdvanceBoard = [
+    [null, null, null, null, null, null, 'BN', 'WQ'],
+    [null, null, null, null, null, null, null, null],
+    [null, null, null, null, null, null, null, null],
+    ['WP', 'BP', null, null, null, null, null, null],
+    [null, null, null, null, null, null, null, null],
+    [null, null, null, null, null, null, null, null],
+    [null, null, null, null, null, null, null, null],
+    ['WR', null, null, null, 'WK', null, null, 'WR'],
+  ];
 
-    it('End game function checks should exist and should be functions', () => {
-      expect(deepRed.whiteCanMove).to.be.a('function');
-      expect(deepRed.isCheckmateWhite).to.be.a('function');
-      expect(deepRed.isStalemateWhite).to.be.a('function');
-    });
+  const pawnPromotionCaptureBoard = [
+    [null, null, null, null, null, null, 'WQ', null],
+    [null, null, null, null, null, null, null, null],
+    [null, null, null, null, null, null, null, null],
+    ['WP', 'BP', null, null, null, null, null, null],
+    [null, null, null, null, null, null, null, null],
+    [null, null, null, null, null, null, null, null],
+    [null, null, null, null, null, null, null, null],
+    ['WR', null, null, null, 'WK', null, null, 'WR'],
+  ];
 
-    it('should check if white has valid available moves', () => {
-      expect(deepRed.whiteCanMove(board)).to.eql(true);
-      expect(deepRed.whiteCanMove(safeBoard)).to.eql(true);
-      expect(deepRed.whiteCanMove(checkmateBoard)).to.eql(false);
-      expect(deepRed.whiteCanMove(stalemateBoard)).to.eql(false);
-    });
-
-    it('should check if white is in checkmate', () => {
-      expect(deepRed.isCheckmateWhite(board)).to.eql(false);
-      expect(deepRed.isCheckmateWhite(safeBoard)).to.eql(false);
-      expect(deepRed.isCheckmateWhite(checkmateBoard)).to.eql(true);
-      expect(deepRed.isCheckmateWhite(stalemateBoard)).to.eql(false);
-    });
-
-    it('should check if white is in checkmate', () => {
-      expect(deepRed.isStalemateWhite(board)).to.eql(false);
-      expect(deepRed.isStalemateWhite(safeBoard)).to.eql(false);
-      expect(deepRed.isStalemateWhite(checkmateBoard)).to.eql(false);
-      expect(deepRed.isStalemateWhite(stalemateBoard)).to.eql(true);
-    });
+  it('should handle castling', () => {
+    expect(mutateBoard(board, { move: 'castle', color: 'W', side: 'O-O' })).to.deep.equal(wkCastleBoard);
+    expect(mutateBoard(board, { move: 'castle', color: 'W', side: 'O-O-O' })).to.deep.equal(wqCastleBoard);
   });
 
-  describe('[Black] End of game checks', () => {
-    const board = [
-      ['BR', 'BN', 'BB', 'BK', 'BQ', 'BB', 'BN', 'BR'],
-      ['BP', 'BP', 'BP', 'BP', 'BP', 'BP', 'BP', 'BP'],
-      [null, null, null, null, null, null, null, null],
-      [null, null, null, null, null, null, null, null],
-      [null, null, null, null, null, null, null, null],
-      [null, null, null, null, null, null, null, null],
-      ['WP', 'WP', 'WP', 'WP', 'WP', 'WP', 'WP', 'WP'],
-      ['WR', 'WN', 'WB', 'WK', 'WQ', 'WB', 'WN', 'WR'],
-    ];
-
-    const safeBoard = [
-      [null, null, null, null, null, null, null, null],
-      [null, null, null, null, null, null, null, null],
-      [null, null, null, null, null, null, null, null],
-      [null, null, null, null, null, null, null, null],
-      [null, null, null, null, null, null, null, null],
-      [null, null, null, null, null, null, null, null],
-      [null, null, 'WR', null, null, null, null, null],
-      [null, null, null, 'BK', null, null, null, 'WR'],
-    ];
-
-    const checkmateBoard = [
-      [null, null, null, null, null, null, null, null],
-      [null, null, null, null, null, null, null, null],
-      [null, null, null, null, null, null, null, null],
-      [null, null, null, null, null, null, null, null],
-      [null, null, null, null, null, null, null, null],
-      [null, null, null, null, null, null, null, null],
-      ['WR', null, null, null, null, null, null, null],
-      [null, null, null, 'BK', null, null, null, 'WR'],
-    ];
-
-    const stalemateBoard = [
-      [null, null, null, null, null, null, null, null],
-      [null, null, null, null, null, null, null, null],
-      [null, null, null, null, null, null, null, null],
-      [null, null, null, null, null, null, null, null],
-      [null, null, 'WB', null, null, null, null, null],
-      [null, null, 'WQ', null, null, null, null, null],
-      [null, null, null, null, null, null, null, null],
-      [null, null, null, 'BK', null, null, null, null],
-    ];
-
-    it('End game function checks should exist and should be functions', () => {
-      expect(deepRed.blackCanMove).to.be.a('function');
-      expect(deepRed.isCheckmateBlack).to.be.a('function');
-      expect(deepRed.isStalemateBlack).to.be.a('function');
-    });
-
-    it('should check if black has valid available moves', () => {
-      expect(deepRed.blackCanMove(board)).to.eql(true);
-      expect(deepRed.blackCanMove(safeBoard)).to.eql(true);
-      // expect(deepRed.blackCanMove(checkmateBoard)).to.eql(false);
-      // expect(deepRed.blackCanMove(stalemateBoard)).to.eql(false);
-    });
-
-    it('should check if black is in checkmate', () => {
-      expect(deepRed.isCheckmateBlack(board)).to.eql(false);
-      expect(deepRed.isCheckmateBlack(safeBoard)).to.eql(false);
-      // expect(deepRed.isCheckmateBlack(checkmateBoard)).to.eql(true);
-      // expect(deepRed.isCheckmateBlack(stalemateBoard)).to.eql(false);
-    });
-
-    it('should check if black is in checkmate', () => {
-      expect(deepRed.isStalemateBlack(board)).to.eql(false);
-      expect(deepRed.isStalemateBlack(safeBoard)).to.eql(false);
-      expect(deepRed.isStalemateBlack(checkmateBoard)).to.eql(false);
-      // expect(deepRed.isStalemateBlack(stalemateBoard)).to.eql(true);
-    });
+  it('should handle enpassant', () => {
+    expect(mutateBoard(board, { move: 'enpassant', from: '30', to: '21', captured: '31', color: 'W' })).to.deep.equal(enPassantBoard);
   });
+
+  it('should handle pawn promotion', () => {
+    expect(mutateBoard(board, { move: 'pawnPromotion', from: '17', to: '07', newPiece: 'WQ' })).to.deep.equal(pawnPromotionAdvanceBoard);
+    expect(mutateBoard(board, { move: 'pawnPromotion', from: '17', to: '06', newPiece: 'WQ' })).to.deep.equal(pawnPromotionCaptureBoard);
+  });
+});
+
+describe('Get all safe moves', () => {
+  const board = [
+    ['BR', 'BN', 'BB', 'BK', 'BQ', 'BB', 'BN', 'BR'],
+    ['BP', 'BP', 'BP', 'BP', 'BP', 'BP', 'BP', 'BP'],
+    [null, null, null, null, null, null, null, null],
+    [null, null, null, null, null, null, null, null],
+    [null, null, null, null, null, null, null, null],
+    [null, null, null, null, null, null, null, null],
+    ['WP', 'WP', 'WP', 'WP', 'WP', 'WP', 'WP', 'WP'],
+    ['WR', 'WN', 'WB', 'WK', 'WQ', 'WB', 'WN', 'WR'],
+  ];
+
+  const wbCanNotMove = [
+    [null, null, null, null, null, null, null, null],
+    [null, null, null, null, null, null, null, null],
+    [null, null, null, null, null, null, null, null],
+    [null, null, null, null, null, null, null, null],
+    [null, null, null, null, null, null, null, null],
+    [null, null, null, null, null, null, null, null],
+    [null, null, null, 'WB', null, null, null, null],
+    [null, null, null, 'WK', null, null, null, null],
+  ];
+
+  const canNotEnPassant = [
+    [null, null, null, null, null, null, null, null],
+    [null, null, null, null, null, null, null, null],
+    [null, null, null, null, null, null, null, null],
+    [null, null, null, 'WP', 'BP', null, null, null],
+    [null, null, null, null, null, null, null, null],
+    [null, null, null, null, null, null, null, null],
+    [null, null, null, null, null, null, null, null],
+    [null, null, null, 'WK', null, null, null, null],
+  ];
+
+  const epState = Object.assign({}, pieceState, { canEnPassantW: '04' });
+
+  const canNotPawnPromoteByCapture = [
+    [null, null, null, 'BB', 'BN', null, null, null],
+    [null, null, null, 'WP', null, null, null, null],
+    [null, null, null, null, null, null, null, null],
+    [null, null, null, null, null, null, null, null],
+    [null, null, null, null, null, null, null, null],
+    [null, null, null, null, null, null, null, null],
+    [null, null, null, null, null, null, null, null],
+    [null, null, null, 'WK', null, null, null, null],
+  ];
+
+  it('Get all safe moves should exist and should be functions', () => {
+    expect(getSafeMovesWhite).to.be.a('function');
+    expect(getSafeMovesBlack).to.be.a('function');
+  });
+
+  it('should not allow for moves that endanger the King', () => {
+    expect(getSafeMovesWhite(wbCanNotMove, pieceState)).to.have.property('63');
+    wbCanNotMove[0][3] = 'BR';
+    expect(getSafeMovesWhite(wbCanNotMove, pieceState)['63'].length).to.eql(0);
+  });
+
+
+  it('should not allow for En Passant that endangers the King', () => {
+    expect(getSafeMovesWhite(canNotEnPassant, epState)).to.have.property('specialMoves');
+    canNotEnPassant[0][3] = 'BR';
+    expect(getSafeMovesWhite(canNotEnPassant, epState)).to.not.have.property('specialMoves');
+  });
+
+  it('should not allow for Pawn Promotion that endangers the King', () => {
+    expect(getSafeMovesWhite(canNotPawnPromoteByCapture, pieceState)).to.have.property('specialMoves');
+    canNotPawnPromoteByCapture[0][3] = 'BR';
+    expect(getSafeMovesWhite(canNotPawnPromoteByCapture, pieceState)).to.not.have.property('specialMoves');
+  });
+
 });

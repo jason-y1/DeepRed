@@ -3,23 +3,31 @@ import { connect } from 'react-redux';
 import io from 'socket.io-client';
 import injectTapEventPlugin from 'react-tap-event-plugin';
 import axios from 'axios';
-import Dialog from 'material-ui/Dialog';
 import FlatButton from 'material-ui/FlatButton';
 import RaisedButton from 'material-ui/RaisedButton';
-import { pauseDialogOpen, pauseDialogClose, setPlayerW, updateRoomInfo, getRequestFailure, receiveGame, movePiece, unselectPiece, capturePiece, displayError, colorSquare, sendMsg } from '../store/actions';
-
+import {
+  updateTimer, cancelPauseDialogClose, updateAlertName,
+  cancelPauseDialogOpen, pauseDialogOpen, pauseDialogClose, setPlayer,
+  updateRoomInfo, getRequestFailure, receiveGame, movePiece, resetBoolBoard,
+  unselectPiece, capturePiece, displayError, colorSquare, sendMsgLocal, sendMsgGlobal,
+  updateTimerB, timeInstanceB, updateTimerW, timeInstanceW, saveBoolBoard, castlingMove,
+  selectGameModeClose, selectGameModeOpen, selectRoomOpen, selectRoomClose,
+  selectSideOpen, selectSideClose, updateAllRooms, updateRoomQueue, setPlayerId,
+  enPassantMove, pawnPromotionMove, resumeDialogOpen, resumeDialogClose, cancelResumeDialogOpen,
+  cancelResumeDialogClose, announceSurrenderDialogOpen, announceSurrenderDialogClose,
+  updateGameMode, openWinnerDialog, openCheckDialog,
+} from '../store/actions';
 // Components
-import ChessMenu from '../components/ChessMenu';
-import SettingsDrawer from '../components/SettingsDrawer';
+import Header from '../components/Header';
 import Board from './Board';
 import Message from '../components/Message';
 import CapturedPieces from '../components/CapturedPieces';
 import MoveHistory from '../components/MoveHistory';
 import Alert from './Alert';
-import ErrorAlert from './ErrorAlert';
-import ChatBox from '../components/ChatBox';
+import PlayerName from '../components/PlayerName';
+import Clock from '../components/Clock';
+import Messages from '../components/Messages';
 import './css/App.css';
-
 
 // Needed for onTouchTap
 // http://stackoverflow.com/a/34015469/988941
@@ -31,95 +39,164 @@ class App extends Component {
     super(props);
     this.getUserInfo = this.getUserInfo.bind(this);
     this.attemptMove = this.attemptMove.bind(this);
-    this.checkLegalMove = this.checkLegalMove.bind(this);
+    this.checkLegalMoves = this.checkLegalMoves.bind(this);
     this.newChessGame = this.newChessGame.bind(this);
     this.startSocket = this.startSocket.bind(this);
+    this.stopTimerB = this.stopTimerB.bind(this);
+    this.stopTimerW = this.stopTimerW.bind(this);
+    this.toggleTimers = this.toggleTimers.bind(this);
+    this.decrementTimerB = this.decrementTimerB.bind(this);
+    this.decrementTimerW = this.decrementTimerW.bind(this);
     this.sendPauseRequest = this.sendPauseRequest.bind(this);
+    this.sendResumeRequest = this.sendResumeRequest.bind(this);
     this.handlePauseOpen = this.handlePauseOpen.bind(this);
     this.handlePauseClose = this.handlePauseClose.bind(this);
-    this.onRejectPauseRequest = this.onRejectPauseRequest.bind(this);
-    this.sendMessage = this.sendMessage.bind(this);
+    this.sendMessageLocal = this.sendMessageLocal.bind(this);
+    this.sendMessageGlobal = this.sendMessageGlobal.bind(this);
+    this.onCancelPauseRequest = this.onCancelPauseRequest.bind(this);
+    this.handleCancelPauseClose = this.handleCancelPauseClose.bind(this);
+    this.onAgreePauseRequest = this.onAgreePauseRequest.bind(this);
+    this.onChangePlayerTurn = this.onChangePlayerTurn.bind(this);
+    this.handleCreateRoomAsBlack = this.handleCreateRoomAsBlack.bind(this);
+    this.handleCreateRoomAsWhite = this.handleCreateRoomAsWhite.bind(this);
+    this.handleJoinRoomAsBlack = this.handleJoinRoomAsBlack.bind(this);
+    this.handleJoinRoomAsWhite = this.handleJoinRoomAsWhite.bind(this);
+    this.handleSurrender = this.handleSurrender.bind(this);
+    this.handleResumeOpen = this.handleResumeOpen.bind(this);
+    this.onCancelResumeRequest = this.onCancelResumeRequest.bind(this);
+    this.onAgreeResumeRequest = this.onAgreeResumeRequest.bind(this);
+    this.handleCancelResumeClose = this.handleCancelResumeClose.bind(this);
+    this.handleAnnounceSurrenderOpen = this.handleAnnounceSurrenderOpen.bind(this);
+    this.handleAnnounceSurrenderClose = this.handleAnnounceSurrenderClose.bind(this);
+    this.updateUserGameStat = this.updateUserGameStat.bind(this);
+    this.winLoseResult = this.winLoseResult.bind(this);
+    this.closeDialog = this.closeDialog.bind(this);
+    // this.watson = this.watson.bind(this);
   }
 
   componentDidMount() {
     this.getUserInfo();
-  }
-
-  onRejectPauseRequest() {
-    const { dispatch, room } = this.props;
-    dispatch(pauseDialogClose());
-    this.socket.emit('rejectPauseRequest', room);
+    // this.watson();
   }
 
   getUserInfo() {
     const { dispatch } = this.props;
     axios.get('/api/profiles/id')
-    .then((response) => {
-      console.log('successfully fetched current user infomation');
-      dispatch(setPlayerW(response));
-    })
-    .then(() => {
-      this.startSocket();
-    })
-    .catch((err) => {
-      dispatch(getRequestFailure(err));
-      console.error('failed to obtain current user infomation!', err);
-    });
+      .then((response) => {
+        console.log('successfully fetched current user infomation: ');
+        dispatch(setPlayer(response));
+      })
+      .then(() => {
+        dispatch(selectRoomOpen());
+        this.startSocket();
+      })
+
+      .catch((err) => {
+        dispatch(getRequestFailure(err));
+        console.error('failed to obtain current user infomation!', err);
+      });
   }
 
+  // watson() {
+  //   const option = {
+  //     text: 'nice move',
+  //   };
+
+  //   axios.post(option, '/api/game/conversation')
+  //     .then((response) => {
+  //       console.log('message sent!', response);
+  //     })
+  //     .catch((err) => {
+  //       console.error(err);
+  //     });
+  // }
+
+  updateUserGameStat(arr) {
+    axios.post('/api/game/updateUserGameStat', arr)
+      .then((response) => {
+        console.log('successfully sent user win lose information to server: ', response);
+      })
+      .catch((err) => {
+        console.error('failed to send user win lose information to the server! ', err);
+      });
+  }
 
   startSocket() {
-    const { dispatch, playerW } = this.props;
+    const { dispatch, playerW, playerB, thisUser, thisEmail, room, count,
+       gameTurn, timeB, timeW } = this.props;
 
-    const name = playerW;
-    // instantiate socket instance on the cllient side
+    const name = thisUser;
+    const email = thisEmail;
+    // instantiate socket instance on the client side
     this.socket = io.connect();
 
     this.socket.on('connect', () => {
-      console.log('client side connected!');
-      this.socket.emit('sendCurrentUserName', name);
+      console.log('client side socket connected!');
+      dispatch(setPlayerId(this.socket.id));
+      this.socket.emit('getAllRooms', this.socket.id);
+      this.socket.emit('sendCurrentUserNameAndEmail', name, email);
     });
 
-    this.socket.on('firstPlayerJoined', (roomInfo) => {
+    this.socket.on('returnAllRooms', (allRooms) => {
+      dispatch(updateAllRooms(allRooms));
+    });
+
+    this.socket.on('createRoomCompleted', (roomInfo, allRooms) => {
+      dispatch(updateAllRooms(allRooms));
       dispatch(updateRoomInfo(roomInfo));
-      console.log(`first player has joined ${roomInfo.room} as ${roomInfo.playerW}`);
+      this.socket.emit('getAllRooms', this.socket.id);
     });
 
-    this.socket.on('secondPlayerJoined', (roomInfo) => {
-      console.log(`second player has joined ${roomInfo.room} as ${roomInfo.playerB}`);
-    });
-
-    this.socket.on('startGame', (roomInfo) => {
+    this.socket.on('joinRoomCompleted', (roomInfo, allRooms, game) => {
+      dispatch(selectRoomClose());
+      dispatch(updateAllRooms(allRooms));
       dispatch(updateRoomInfo(roomInfo));
+      dispatch(updateTimer(roomInfo));
+      if (game) {
+        dispatch(receiveGame(game));
+      }
+      this.decrementTimerW();
     });
 
-    this.socket.on('message', (msg) => {
-      dispatch(sendMsg(msg));
-    })
+    this.socket.on('messageLocal', (msg) => {
+      dispatch(sendMsgLocal(msg));
+    });
 
-    this.socket.on('attemptMoveResult', (board, error, selectedPiece, origin, dest, selection, room) => {
-      console.log('************** BOARD: ', board);
-      // dispatch(receiveGame(board));
+    this.socket.on('messageGlobal', (msg) => {
+      dispatch(sendMsgGlobal(msg));
+    });
+
+    this.socket.on('attemptMoveResult', (error, game, origin, dest, selection) => {
       if (error === null) {
-        dispatch(movePiece(selectedPiece, origin, dest));
-        if (selection) {
-          dispatch(capturePiece(selectedPiece, origin, dest, selection));
+        // if (pawnPromotionPiece) {
+        //   dispatch(pawnPromotionMove(origin, dest, pawnPromotionPiece, gameTurn));
+        // } else if (castling) {
+        //   dispatch(castlingMove(origin, dest, castling, gameTurn));
+        // } else if (enPassantCoord) {
+        //   dispatch(enPassantMove(origin, dest, enPassantCoord, gameTurn));
+        // } else if (selection) {
+        //   dispatch(capturePiece(origin, dest, selection, gameTurn));
+        // } else {
+        //   dispatch(movePiece(origin, dest, gameTurn));
+        // }
+        dispatch(receiveGame(game));
+        if (game.winner) {
+          dispatch(openWinnerDialog(game.winner));
+        } else if (game.playerInCheck) {
+          dispatch(openCheckDialog(game.playerInCheck));
         }
+        this.toggleTimers();
       } else {
-        console.log('---------- ERROR: ', error);
+        console.log('ERROR: ', error);
         dispatch(displayError(error));
       }
       dispatch(unselectPiece());
+      dispatch(resetBoolBoard());
       dispatch(colorSquare(null, dest));
     });
 
-    this.socket.on('isLegalMoveResult', (dest, bool) => {
-      // dispatch(receiveGame(board));
-      let color = 'board-col red';
-      if (bool) {
-        color = 'board-col green';
-      }
-      dispatch(colorSquare(color, dest));
+    this.socket.on('checkLegalMovesResults', (boolBoard) => {
+      dispatch(saveBoolBoard(boolBoard));
     });
 
     this.socket.on('requestPauseDialogBox', () => {
@@ -127,20 +204,237 @@ class App extends Component {
     });
 
     this.socket.on('rejectPauseRequestNotification', () => {
-      const { room, playerB, playerW } = this.props;
-      console.log('notification received');
-      this.socket.emit('handleRejectPauseRequest', room, playerB, playerW);
+      const { count } = this.props;
+      this.socket.emit('handleRejectPauseRequest', count, this.socket.id);
     });
 
-    this.socket.on('cancelPauseNotification', () => {
-
-      console.log('someone canceled pause');
+    this.socket.on('cancelPauseNotification', (playerName) => {
+      dispatch(updateAlertName(playerName));
+      dispatch(cancelPauseDialogOpen());
+      setTimeout(() => {
+        dispatch(cancelPauseDialogClose());
+        dispatch(pauseDialogClose());
+      }, 3000);
     });
+
+    this.socket.on('executePauseRequest', () => {
+      this.onChangePlayerTurn();
+    });
+
+    this.socket.on('requestResumeDialogBox', () => {
+      this.handleResumeOpen();
+    });
+
+    this.socket.on('rejectResumeRequestNotification', () => {
+      const { count } = this.props;
+      this.socket.emit('handleRejectResumeRequest', count, this.socket.id);
+    });
+
+    this.socket.on('cancelResumeNotification', (playerName) => {
+      dispatch(updateAlertName(playerName));
+      dispatch(cancelResumeDialogOpen());
+      setTimeout(() => {
+        dispatch(cancelResumeDialogClose());
+        dispatch(resumeDialogClose());
+      }, 3000);
+    });
+
+    this.socket.on('executeResumeRequest', () => {
+      const { gameTurn } = this.props;
+      if (gameTurn === 'W') {
+        this.decrementTimerW();
+      }
+      if (gameTurn === 'B') {
+        this.decrementTimerB();
+      }
+    });
+
+    this.socket.on('announceSurrender', (playerName) => {
+      const { playerW, playerB, playerWemail, playerBemail } = this.props;
+      if (playerName === playerW) {
+        console.log('player W surrendered');
+        this.updateUserGameStat(this.winLoseResult(playerBemail, playerWemail));
+      } else if (playerName === playerB) {
+        console.log('player B surrendered');
+        this.updateUserGameStat(this.winLoseResult(playerWemail, playerBemail));
+      }
+      dispatch(updateAlertName(playerName));
+      this.onChangePlayerTurn();
+      this.handleAnnounceSurrenderOpen();
+    });
+
+    this.socket.on('sendUpdateTime', (roomInfo) => {
+      dispatch(updateTimer(roomInfo));
+    });
+
+    this.socket.on('updateAllRooms', (allRooms) => {
+      dispatch(updateAllRooms(allRooms));
+    });
+
+    this.socket.on('beforeDisconnect', (playerName) => {
+      console.log(`player ${playerName} has disconnected from the server`);
+    });
+  }
+
+  // GAME control
+  winLoseResult(player1, player2) {
+    const arr = [];
+    arr[0] = { winner: player1, win: 1, draw: 0, lose: 0 };
+    arr[1] = { loser: player2, win: 0, draw: 0, lose: 1 };
+    return arr;
+  }
+
+  toggleTimers() {
+    const { gameTurn } = this.props;
+    this.onChangePlayerTurn();
+    if (gameTurn === 'B') {
+      this.decrementTimerB();
+    }
+    if (gameTurn === 'W') {
+      this.decrementTimerW();
+    }
+  }
+
+  decrementTimerB() {
+    const { dispatch, playerWemail, playerBemail } = this.props;
+    let { timeB, counterBinstance } = this.props;
+    counterBinstance = setInterval(() => {
+      if (timeB > 0) {
+        timeB -= 1;
+      } else {
+        timeB = 0;
+        this.stopTimerB();
+        this.updateUserGameStat(this.winLoseResult(playerWemail, playerBemail));
+      }
+      dispatch(updateTimerB(timeB));
+      dispatch(timeInstanceB(counterBinstance));
+    }, 1000);
+  }
+
+  decrementTimerW() {
+    const { dispatch, playerWemail, playerBemail } = this.props;
+    let { timeW, counterWinstance } = this.props;
+    counterWinstance = setInterval(() => {
+      if (timeW > 0) {
+        timeW -= 1;
+      } else {
+        timeW = 0;
+        this.stopTimerW();
+        this.updateUserGameStat(this.winLoseResult(playerWemail, playerBemail));
+      }
+      dispatch(updateTimerW(timeW));
+      dispatch(timeInstanceW(counterWinstance));
+    }, 1000);
+  }
+
+  stopTimerB() {
+    const { dispatch, timeB, counterBinstance } = this.props;
+    dispatch(updateTimerB(timeB));
+    clearInterval(counterBinstance);
+  }
+
+  stopTimerW() {
+    const { dispatch, timeW, counterWinstance } = this.props;
+    dispatch(updateTimerW(timeW));
+    clearInterval(counterWinstance);
+  }
+
+  onChangePlayerTurn() {
+    const { room, count, timeB, timeW } = this.props;
+    this.stopTimerB();
+    this.stopTimerW();
+    this.socket.emit('updateTime', room, count, timeB, timeW);
+  }
+
+  // CONTROL function
+  closeDialog() {
+    const { dispatch } = this.props;
+    dispatch(selectRoomClose());
+  }
+
+  handleSurrender() {
+    const { thisUser, room } = this.props;
+    this.socket.emit('onSurrender', thisUser, room);
+  }
+
+  handleCreateRoomAsBlack(mode) {
+    const { dispatch, thisUser, thisEmail } = this.props;
+    dispatch(updateGameMode(mode));
+    this.socket.emit('createRoomAsBlack', thisUser, thisEmail, this.socket.id, mode);
+  }
+
+  handleCreateRoomAsWhite(mode) {
+    const { dispatch, thisUser, thisEmail } = this.props;
+    dispatch(updateGameMode(mode));
+    this.socket.emit('createRoomAsWhite', thisUser, thisEmail, this.socket.id, mode);
+  }
+
+  handleJoinRoomAsWhite(count) {
+    const { dispatch, thisUser, thisEmail } = this.props;
+    this.socket.emit('joinRoomAsWhite', thisUser, thisEmail, count);
+    dispatch(selectRoomClose());
+  }
+
+  handleJoinRoomAsBlack(count) {
+    const { dispatch, thisUser, thisEmail } = this.props;
+    this.socket.emit('joinRoomAsBlack', thisUser, thisEmail, count);
+    dispatch(selectRoomClose());
+  }
+
+  onAgreePauseRequest() {
+    const { dispatch, count } = this.props;
+    dispatch(pauseDialogClose());
+    this.socket.emit('agreePauseRequest', count, this.socket.id);
+  }
+
+  onCancelPauseRequest() {
+    const { dispatch, room } = this.props;
+    dispatch(pauseDialogClose());
+    this.socket.emit('rejectPauseRequest', room);
+  }
+
+  handleCancelPauseClose() {
+    const { dispatch } = this.props;
+    dispatch(pauseDialogClose());
+    dispatch(cancelPauseDialogClose());
   }
 
   sendPauseRequest() {
     const { room } = this.props;
     this.socket.emit('requestPause', room);
+  }
+
+  sendResumeRequest() {
+    const { room } = this.props;
+    this.socket.emit('requestResume', room);
+  }
+
+  onCancelResumeRequest() {
+    const { dispatch, room } = this.props;
+    dispatch(resumeDialogClose());
+    this.socket.emit('rejectResumeRequest', room);
+  }
+
+  onAgreeResumeRequest() {
+    const { dispatch, count } = this.props;
+    dispatch(resumeDialogClose());
+    this.socket.emit('agreeResumeRequest', count, this.socket.id);
+  }
+
+  handleCancelResumeClose() {
+    const { dispatch } = this.props;
+    dispatch(resumeDialogClose());
+    dispatch(cancelResumeDialogClose());
+  }
+
+  handleResumeOpen() {
+    const { dispatch } = this.props;
+    dispatch(resumeDialogOpen());
+  }
+
+  handleResumeClose() {
+    const { dispatch } = this.props;
+    dispatch(resumeDialogClose());
   }
 
   handlePauseOpen() {
@@ -153,6 +447,16 @@ class App extends Component {
     dispatch(pauseDialogClose());
   }
 
+  handleAnnounceSurrenderClose() {
+    const { dispatch } = this.props;
+    dispatch(announceSurrenderDialogClose());
+  }
+
+  handleAnnounceSurrenderOpen() {
+    const { dispatch } = this.props;
+    dispatch(announceSurrenderDialogOpen());
+  }
+  // LOGIC
   newChessGame() {
     const { dispatch } = this.props;
     console.log('make new game');
@@ -160,97 +464,233 @@ class App extends Component {
     this.socket.on('createdChessGame', game => dispatch(receiveGame(game)));
   }
 
-  attemptMove(selectedPiece, origin, dest, selection, room) {
-    // const { dispatch } = this.props;
+  attemptMove(origin, dest, selection, room, pawnPromoteType = null, gameMode) {
+    // const { dispatch, room} = this.props;
     console.log('sending origin and dest coordinates to server');
-    this.socket.emit('attemptMove', selectedPiece, origin, dest, selection, room);
+    this.socket.emit('attemptMove', origin, dest, selection, pawnPromoteType, room, gameMode);
     // this.socket.emit('checkLegalMove', originDestCoord);
   }
 
-  checkLegalMove(origin, dest, room) {
+  checkLegalMoves(origin, room) {
     // const { dispatch } = this.props;
-    console.log('checking legal move');
-
-  sendMessage(msg) {
-    this.socket.emit('message', msg);
-  }
-
-  render() {
-    const { moveHistory, capturedPiecesBlack, capturedPiecesWhite, message, playerB, playerW, messages }
-          = this.props;
-
-    this.socket.emit('checkLegalMove', origin, dest, room);
+    console.log('checking legal moves');
+    this.socket.emit('checkLegalMoves', origin, room, this.socket.id);
     // this.socket.emit('checkLegalMove', originDestCoord);
   }
 
-  sendMessage(msg) {
-    this.socket.emit('message', msg);
+  sendMessageLocal(msg) {
+    const { count } = this.props;
+    this.socket.emit('messageLocal', msg, count);
   }
 
+  sendMessageGlobal(msg) {
+    const { count } = this.props;
+    this.socket.emit('messageGlobal', msg, count);
+  }
 
   render() {
-    const { pauseOpen, moveHistory, capturedPiecesBlack, capturedPiecesWhite, message, playerB, playerW, error, messages } = this.props;
+    const {
+      alertName, cancelPauseOpen, pauseOpen, moveHistory,
+      capturedPiecesBlack, capturedPiecesWhite, resumeOpen,
+      playerB, playerW, error, messagesLocal, messagesGlobal, isWhite, thisUser,
+      chooseGameModeOpen, chooseRoomOpen, chooseSideOpen, allRooms,
+      cancelResumeOpen, surrenderOpen,
+    } = this.props;
+
     const pauseActions = [
       <FlatButton
         label="No"
-        primary={true}
-        onTouchTap={this.onRejectPauseRequest}
+        primary
+        onTouchTap={this.onCancelPauseRequest}
       />,
       <FlatButton
         label="Yes"
-        primary={true}
-        keyboardFocused={true}
-        onTouchTap={this.handlePauseClose}
+        primary
+        keyboardFocused
+        onTouchTap={this.onAgreePauseRequest}
       />,
     ];
 
-    const { moveHistory, capturedPiecesBlack, capturedPiecesWhite, message, playerB, playerW, error, messages } = this.props;
+    const resumeActions = [
+      <FlatButton
+        label="No"
+        primary
+        onTouchTap={this.onCancelResumeRequest}
+      />,
+      <FlatButton
+        label="yes"
+        primary
+        onTouchTap={this.onAgreeResumeRequest}
+      />,
+    ];
+
+    const cancelPauseActions = [
+      <FlatButton
+        label="Ok"
+        primary
+        keyboardFocused
+        onTouchTap={this.handleCancelPauseClose}
+      />,
+    ];
+
+    const cancelResumeActions = [
+      <FlatButton
+        label="Ok"
+        primary
+        keyboardFocused
+        onTouchTap={this.handleCancelResumeClose}
+      />,
+    ];
+
+    const selectRoomActions = [
+      <RaisedButton
+        label="Close"
+        secondary
+        keyboardFocused
+        onTouchTap={this.closeDialog}
+      />,
+    ];
+
+    const surrenderActions = [
+      <RaisedButton
+        label="Ok"
+        secondary
+        onTouchTap={this.handleAnnounceSurrenderClose}
+      />,
+    ];
 
     return (
       <div className="site-wrap">
-        <ChessMenu />
-        <div className="header">
-          <table>
-            <tbody>
-              <tr>
-                <td><h1>Deep Red</h1></td>
-                <td className="button-cell">
-                  <SettingsDrawer />
-                  <a href="/profile" className="button">Home</a>
-                  <a href="/logout" className="button">Logout</a>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
+        <Header
+          sendPauseRequest={this.sendPauseRequest}
+          sendResumeRequest={this.sendResumeRequest}
+          handleSurrender={this.handleSurrender}
+        />
         <div className="content">
           <div className="flex-row">
-
+            <div className="flex-col left-col">
+              <div className="left-col-row">
+                <div className="player-top">
+                  <PlayerName
+                    color={(!isWhite) ? 'White' : 'Black'}
+                    player={(!isWhite) ? playerW : playerB}
+                    position="top"
+                  />
+                </div>
+                <div className="countdown-top-clock">
+                  {(playerB !== undefined) ?
+                    <Clock color={(!isWhite) ? 'White' : 'Black'} /> : null
+                  }
+                </div>
+                <div className="move-history">
+                  <MoveHistory
+                    moveHistory={moveHistory}
+                  />
+                </div>
+                <div className="countdown-bot-clock">
+                  {(playerB !== undefined) ?
+                    <Clock color={(isWhite) ? 'White' : 'Black'} /> : null
+                  }
+                </div>
+                <div className="player-bot">
+                  <PlayerName
+                    color={(isWhite) ? 'White' : 'Black'}
+                    player={(isWhite) ? playerW : playerB}
+                    position="bot"
+                  />
+                </div>
+              </div>
+            </div>
+            <div className="flex-col capt-col">
+              <div className="flex-col capt-black-col">
+                <CapturedPieces
+                  color={(!isWhite) ? 'White' : 'Black'}
+                  capturedPieces={(!isWhite) ? capturedPiecesWhite : capturedPiecesBlack}
+                  player={(!isWhite) ? playerW : playerB}
+                />
+              </div>
+              <div className="flex-col capt-black-col">
+                <CapturedPieces
+                  color={(isWhite) ? 'White' : 'Black'}
+                  capturedPieces={(isWhite) ? capturedPiecesWhite : capturedPiecesBlack}
+                  player={(isWhite) ? playerW : playerB}
+                />
+              </div>
+            </div>
             <div className="flex-col">
-              <CapturedPieces
-                color="Black"
-                capturedPieces={capturedPiecesBlack}
-                player={playerB}
-                sendPauseRequest={this.sendPauseRequest}
-              />
-              <Board attemptMove={this.attemptMove} checkLegalMove={this.checkLegalMove} />
-              <CapturedPieces
-                color="White"
-                capturedPieces={capturedPiecesWhite}
-                player={playerW}
-                sendPauseRequest={this.sendPauseRequest}
-              />
-              <Message message={message} />
-              <Message message={error} />
+              <Board attemptMove={this.attemptMove} checkLegalMoves={this.checkLegalMoves} />
+              {/* <Message message={message} />
+              <Message message={error} /> */}
             </div>
 
             <div className="flex-col right-col">
-              <MoveHistory moveHistory={moveHistory} />
-              <ChatBox messages={messages} sendMessage={this.sendMessage}/>
+              <Message message={error} />
+              <Messages
+                messagesLocal={messagesLocal}
+                sendMessageLocal={this.sendMessageLocal}
+                messagesGlobal={messagesGlobal}
+                sendMessageGlobal={this.sendMessageGlobal}
+                isWhite={isWhite}
+                thisUser={thisUser}
+              />
             </div>
 
-            <div>
-              <Alert title="hello" actions={pauseActions} open={pauseOpen} handleClose={this.handlePauseClose} />
+            <div className="control-general">
+              <Alert
+                className="pause-request"
+                title="Would you like to pause this game?"
+                actions={pauseActions}
+                open={pauseOpen}
+                handleClose={this.handlePauseClose}
+              />
+              <Alert
+                className="cancel-pause-request"
+                title={`Pause request has been denied by ${alertName}`}
+                actions={cancelPauseActions}
+                open={cancelPauseOpen}
+                handleClose={this.handleCancelPauseClose}
+              />
+              <Alert
+                className="resume-request"
+                title="Are you ready to resume this game?"
+                actions={resumeActions}
+                open={resumeOpen}
+                handleClose={this.handleCancelResumeClose}
+              />
+              <Alert
+                className="cancel-resume-request"
+                title={`Resume request has been denied by ${alertName}`}
+                actions={cancelResumeActions}
+                open={cancelResumeOpen}
+                handleClose={this.handleCancelResumeClose}
+              />
+              <Alert
+                className="announce-surrender"
+                title={`${alertName} has surrendered`}
+                actions={surrenderActions}
+                open={surrenderOpen}
+                handleClose={this.handleAnnounceSurrenderClose}
+              />
+            </div>
+            <div className="control-room">
+              <Alert
+                thisUser={thisUser}
+                allRooms={allRooms}
+                handleCreateRoomAsWhite={this.handleCreateRoomAsWhite}
+                handleCreateRoomAsBlack={this.handleCreateRoomAsBlack}
+                handleJoinRoomAsBlack={this.handleJoinRoomAsBlack}
+                handleJoinRoomAsWhite={this.handleJoinRoomAsWhite}
+                sendMessageGlobal={this.sendMessageGlobal}
+                sendMessageLocal={this.sendMessageLocal}
+                messagesGlobal={messagesGlobal}
+                messagesLocal={messagesLocal}
+                isWhite={isWhite}
+                showRooms
+                className="choose-room"
+                title={'Choose or create a room to join:'}
+                actions={selectRoomActions}
+                open={chooseRoomOpen}
+              />
             </div>
           </div>
         </div>
@@ -262,19 +702,65 @@ class App extends Component {
 function mapStateToProps(state) {
   const { gameState, moveState, userState, controlState } = state;
   const {
+    gameMode,
+    gameTurn,
+    counterBinstance,
+    counterWinstance,
+    timeB,
+    timeW,
     moveHistory,
     capturedPiecesBlack,
     capturedPiecesWhite,
-    messages,
+    messagesLocal,
+    messagesGlobal,
   } = gameState;
   const {
+    thisEmail,
+    roomQueue,
+    allRooms,
+    thisUser,
+    playerWemail,
+    playerBemail,
     playerW,
     playerB,
     room,
+    isWhite,
+    count,
   } = userState;
   const { message, error } = moveState;
-  const { pauseOpen } = controlState;
+  const {
+    surrenderOpen,
+    resumeOpen,
+    pauseOpen,
+    cancelResumeOpen,
+    cancelPauseOpen,
+    alertName,
+    chooseGameModeOpen,
+    chooseRoomOpen,
+    chooseSideOpen,
+  } = controlState;
   return {
+    gameMode,
+    surrenderOpen,
+    cancelResumeOpen,
+    resumeOpen,
+    thisEmail,
+    count,
+    roomQueue,
+    allRooms,
+    chooseSideOpen,
+    chooseRoomOpen,
+    thisUser,
+    chooseGameModeOpen,
+    gameTurn,
+    counterBinstance,
+    counterWinstance,
+    playerWemail,
+    playerBemail,
+    timeB,
+    timeW,
+    alertName,
+    cancelPauseOpen,
     pauseOpen,
     room,
     playerB,
@@ -284,7 +770,9 @@ function mapStateToProps(state) {
     capturedPiecesBlack,
     capturedPiecesWhite,
     error,
-    messages,
+    messagesLocal,
+    messagesGlobal,
+    isWhite,
   };
 }
 

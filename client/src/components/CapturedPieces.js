@@ -1,24 +1,18 @@
 import React from 'react';
-import Clock from '../components/Clock';
 import './css/CapturedPieces.css';
 
-const CapturedPieces = ({ color, capturedPieces, player, sendPauseRequest }) => (
+const CapturedPieces = ({ capturedPieces }) => (
   <div className="captured-pieces" >
-    <h5>Player: {player}</h5>
-    <h5>Captured Pieces: {color}</h5>
     <div className="pieces-container">
-      {capturedPieces.map(piece => (
+      {capturedPieces.map((piece, index) => (
         <img
+          key={index}
           className="captured-img"
           src={`/assets/${piece}.png`}
           alt="captured pieces"
         />
       ),
       )}
-    </div>
-
-    <div className="countdown-clock">
-      <Clock color={color} sendPauseRequest={sendPauseRequest} />
     </div>
   </div>
 );
