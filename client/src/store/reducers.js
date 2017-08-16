@@ -50,61 +50,19 @@ const gameState = (state = Immutable({
         moveHistory: action.game.moveHistoryEntry,
       });
     }
-    case types.MOVE_PIECE: {
-      const cols = 'abcdefgh';
-      const from = cols[action.origin[1]] + (8 - action.origin[0]);
-      const to = cols[action.dest[1]] + (8 - action.dest[0]);
+    case types.UPDATE_CAPTURED_PIECES: {
       return Immutable({
         ...state,
-        moveHistory: state.moveHistory.concat({ from, to }),
-        gameTurn: action.gameTurn,
+        capturedPiecesBlack: action.blackCapPieces,
+        capturedPiecesWhite: action.whiteCapPieces,
       });
     }
-    case types.CASTLING_MOVE: {
-      let castleNotation = 'O-O';
-      if (action.castling[2] === 'Q') {
-        castleNotation = 'O-O-O';
-      }
+    case types.CLEAR_CAPTURED_PIECES: {
       return Immutable({
         ...state,
-        moveHistory: state.moveHistory.concat({ castleNotation }),
-        gameTurn: action.gameTurn,
+        capturedPiecesBlack: [],
+        capturedPiecesWhite: [],
       });
-    }
-    case types.EN_PASSANT_MOVE: {
-      const cols = 'abcdefgh';
-      const from = cols[action.origin[1]] + (8 - action.origin[0]);
-      const to = cols[action.dest[1]] + (8 - action.dest[0]);
-      return Immutable({
-        ...state,
-        moveHistory: state.moveHistory.concat({ from, to }),
-        gameTurn: action.gameTurn,
-      });
-    }
-    case types.PAWN_PROMOTION_MOVE: {
-      const cols = 'abcdefgh';
-      const from = cols[action.origin[1]] + (8 - action.origin[0]);
-      const to = cols[action.dest[1]] + (8 - action.dest[0]);
-      return Immutable({
-        ...state,
-        moveHistory: state.moveHistory.concat({ from, to }),
-        gameTurn: action.gameTurn,
-      });
-    }
-    case types.CAPTURE_PIECE: {
-      const cols = 'abcdefgh';
-      const from = cols[action.origin[1]] + (8 - action.origin[0]);
-      const to = cols[action.dest[1]] + (8 - action.dest[0]);
-      const capturedPiece = action.capturedPiece;
-      const capturedPiecesArray = (capturedPiece[0] === 'W') ? 'capturedPiecesBlack' : 'capturedPiecesWhite';
-      const newState = {
-        ...state,
-        moveHistory: state.moveHistory.concat({ from, to, capturedPiece }),
-        capturedPiecesArray: state[capturedPiecesArray].concat(capturedPiece),
-        gameTurn: action.gameTurn,
-      };
-      newState[capturedPiecesArray] = state[capturedPiecesArray].concat(capturedPiece);
-      return Immutable(newState);
     }
     case types.UPDATE_TIMER: {
       return Immutable({
@@ -204,57 +162,25 @@ const boardState = (state = {
   ],
 }, action) => {
   switch (action.type) {
-    // case types.MOVE_PIECE: {
-    //   const board = state.board.slice(0);
-    //   board[action.dest[0]][action.dest[1]]
-    //     = board[action.origin[0]][action.origin[1]];
-    //   board[action.origin[0]][action.origin[1]] = null;
-    //   return { board };
-    // }
-    // case types.CAPTURE_PIECE: {
-    //   const board = state.board.slice(0);
-    //   board[action.dest[0]][action.dest[1]]
-    //     = board[action.origin[0]][action.origin[1]];
-    //   board[action.origin[0]][action.origin[1]] = null;
-    //   return { board };
-    // }
-    // case types.CASTLING_MOVE: {
-    //   const board = state.board.slice(0);
-    //   board[action.dest[0]][action.dest[1]]
-    //     = board[action.origin[0]][action.origin[1]];
-    //   board[action.origin[0]][action.origin[1]] = null;
-    //   if (action.castling === 'BRQ') {
-    //     board[0][3] = 'BR';
-    //     board[0][0] = null;
-    //   } else if (action.castling === 'BRK') {
-    //     board[0][5] = 'BR';
-    //     board[0][7] = null;
-    //   } else if (action.castling === 'WRQ') {
-    //     board[7][3] = 'WR';
-    //     board[7][0] = null;
-    //   } else if (action.castling === 'WRK') {
-    //     board[7][5] = 'WR';
-    //     board[7][7] = null;
-    //   }
-    //   return { board };
-    // }
-    // case types.EN_PASSANT_MOVE: {
-    //   const board = state.board.slice(0);
-    //   board[action.dest[0]][action.dest[1]]
-    //     = board[action.origin[0]][action.origin[1]];
-    //   board[action.origin[0]][action.origin[1]] = null;
-    //   board[action.enPassantCoord[0]][action.enPassantCoord[1]] = null;
-    //   return { board };
-    // }
-    // case types.PAWN_PROMOTION_MOVE: {
-    //   const board = state.board.slice(0);
-    //   board[action.dest[0]][action.dest[1]]
-    //     = action.pawnPromotionPiece;
-    //   board[action.origin[0]][action.origin[1]] = null;
-    //   return { board };
-    // }
     case types.RECEIVE_GAME: {
       return { board: action.game.board };
+    }
+    case types.UPDATE_BOARD: {
+      return { board: action.board };
+    }
+    case types.RESET_BOARD: {
+      return {
+        board: [
+          ['BR', 'BN', 'BB', 'BQ', 'BK', 'BB', 'BN', 'BR'],
+          ['BP', 'BP', 'BP', 'BP', 'BP', 'BP', 'BP', 'BP'],
+          [null, null, null, null, null, null, null, null],
+          [null, null, null, null, null, null, null, null],
+          [null, null, null, null, null, null, null, null],
+          [null, null, null, null, null, null, null, null],
+          ['WP', 'WP', 'WP', 'WP', 'WP', 'WP', 'WP', 'WP'],
+          ['WR', 'WN', 'WB', 'WQ', 'WK', 'WB', 'WN', 'WR'],
+        ],
+      };
     }
     default:
       return state;
@@ -495,9 +421,15 @@ const controlState = (state = Immutable({
   pauseOpen: false,
   resumeOpen: false,
   surrenderOpen: false,
+  surrenderConfirmOpen: false,
   chooseGameModeOpen: false,
   chooseRoomOpen: false,
   chooseSideOpen: false,
+  showClock: false,
+  systemPause: false,
+  systemResume: true,
+  snackbarOpen: false,
+  timeoutOpen: false,
 }), action) => {
   switch (action.type) {
     case types.PAUSE_DIALOG_OPEN: {
@@ -566,6 +498,18 @@ const controlState = (state = Immutable({
         surrenderOpen: false,
       });
     }
+    case types.CONFIRM_SURRENDER_DIALOG_OPEN: {
+      return Immutable({
+        ...state,
+        surrenderConfirmOpen: true,
+      });
+    }
+    case types.CONFIRM_SURRENDER_DIALOG_CLOSE: {
+      return Immutable({
+        ...state,
+        surrenderConfirmOpen: false,
+      });
+    }
     case types.SELECT_GAME_MODE_OPEN: {
       return Immutable({
         ...state,
@@ -602,6 +546,132 @@ const controlState = (state = Immutable({
         chooseSideOpen: false,
       });
     }
+    case types.TURN_CLOCK_ON: {
+      return Immutable({
+        ...state,
+        showClock: true,
+      });
+    }
+    case types.TURN_CLOCK_OFF: {
+      return Immutable({
+        ...state,
+        showClock: false,
+      });
+    }
+    case types.TOGGLE_SYSTEM_PAUSE: {
+      return Immutable({
+        ...state,
+        systemPause: !state.systemPause,
+      });
+    }
+    case types.TOGGLE_SYSTEM_RESUME: {
+      return Immutable({
+        ...state,
+        systemResume: !state.systemResume,
+      });
+    }
+    case types.TURN_SNACKBAR_ON: {
+      return Immutable({
+        ...state,
+        snackbarOpen: true,
+      });
+    }
+    case types.TURN_SNACKBAR_OFF: {
+      return Immutable({
+        ...state,
+        snackbarOpen: false,
+      });
+    }
+    case types.TIMEOUT_DIALOG_OPEN: {
+      return Immutable({
+        ...state,
+        timeoutOpen: true,
+      });
+    }
+    case types.TIMEOUT_DIALOG_CLOSE: {
+      return Immutable({
+        ...state,
+        timeoutOpen: false,
+      });
+    }
+    default:
+      return state;
+  }
+};
+
+const infoState = (state = Immutable({
+  loserList: [],
+}), action) => {
+  switch (action.type) {
+    case types.UPDATE_LOSER_LIST: {
+      return Immutable({
+        ...state,
+        loserList: action.loserList,
+      });
+    }
+    default:
+      return state;
+  }
+};
+
+
+const aiState = (state = Immutable({
+  game: [],
+  isAIButtonDisabled: false,
+  aiSpinner: false,
+  games: 0,
+  whiteWins: 0,
+  blackWins: 0,
+  stalemateByMoves: 0,
+  stalemateByPieces: 0,
+  stalemateNoWhiteMoves: 0,
+  stalemateNoBlackMoves: 0,
+  end100moves: 0,
+  castleKing: 0,
+  castleQueen: 0,
+  pawnPromotion: 0,
+  enPassant: 0,
+  averageMovesPerGame: '0',
+}), action) => {
+  switch (action.type) {
+    case types.ADD_AI_GAME: {
+      return Immutable({
+        ...state,
+        // playerW: action.player.data.display,
+        // playerWemail: action.player.data.email,
+        game: action.game,
+      });
+    }
+    case types.UPDATE_GAME_SUMMARY: {
+      return Immutable({
+        ...state,
+        games: action.games,
+        whiteWins: action.whiteWins,
+        blackWins: action.blackWins,
+        stalemateByMoves: action.stalemateByMoves,
+        stalemateByPieces: action.stalemateByPieces,
+        stalemateNoWhiteMoves: action.stalemateNoWhiteMoves,
+        stalemateNoBlackMoves: action.stalemateNoBlackMoves,
+        end100moves: action.end100moves,
+        castleKing: action.castleKing,
+        castleQueen: action.castleQueen,
+        pawnPromotion: action.pawnPromotion,
+        enPassant: action.enPassant,
+        averageMovesPerGame: action.averageMovesPerGame,
+      });
+    }
+    case types.HIDE_AI_BUTTON: {
+      return Immutable({
+        ...state,
+        isAIButtonDisabled: true,
+      });
+    }
+    case types.SHOW_AI_BUTTON: {
+      return Immutable({
+        ...state,
+        isAIButtonDisabled: false,
+      });
+    }
     default:
       return state;
   }
@@ -614,6 +684,8 @@ const rootReducer = combineReducers({
   userState,
   squareState,
   controlState,
+  aiState,
+  infoState,
 });
 
 export default rootReducer;

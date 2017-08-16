@@ -2,6 +2,7 @@ import React, { Component } from 'react';
 import { connect } from 'react-redux';
 import FlatButton from 'material-ui/FlatButton';
 import RaisedButton from 'material-ui/RaisedButton';
+import Paper from 'material-ui/Paper';
 
 import { invalidSelection, selectPiece, colorSquare, displayError, openPromotionDialog, closePromotionDialog, closeCheckDialog, closeWinnerDialog } from '../store/actions';
 
@@ -24,10 +25,13 @@ class Board extends Component {
     const {
       dispatch, board, origin, selectedPiece, room, gameTurn,
       isWhite, attemptMove, checkLegalMoves, boolBoard, gameMode,
+      conversation, renderError,
     } = this.props;
 
     if ((isWhite && gameTurn === 'B') || (!isWhite && gameTurn === 'W')) {
-      dispatch(displayError('Not your turn.'));
+      // dispatch(displayError('Not your turn.'));
+      // conversation('Not your turn.');
+      renderError('Not your turn.');
     } else {
       const selection = board[dest[0]][dest[1]];
       console.log('SELECTION: ', selection);
@@ -106,7 +110,7 @@ class Board extends Component {
 
   render() {
     const { board, isWhite, showPromotionDialog, winner, playerInCheck,
-      showCheckDialog, showWinnerDialog } = this.props;
+      showCheckDialog, showWinnerDialog, playerW, playerB } = this.props;
     const offset = (isWhite) ? 0 : 7;
 
     const promotionActions = [
@@ -146,14 +150,19 @@ class Board extends Component {
     const winnerActions = [
       <RaisedButton
         label="Ok"
-        secondary
+        primary
         onTouchTap={this.handleCloseWinnerDialog}
+      />,
+      <RaisedButton
+        label="Back to Lobby"
+        secondary
+        onTouchTap={this.props.goToLobby}
       />,
     ];
 
     return (
       <div>
-        <div className="board">
+        <Paper className="board" zDepth={4}>
           {board.map((row, rowIndex) => (
             <div key={Math.random()} className="board-row">
               {row.map((col, colIndex) => (
@@ -176,7 +185,7 @@ class Board extends Component {
             </div>
           ),
           )}
-        </div>
+        </Paper>
         <Alert
           className="pauseRequest"
           title="Please select an upgrade."
@@ -191,7 +200,7 @@ class Board extends Component {
         /> */}
         <Alert
           className="pauseRequest"
-          title={`Winner is ${winner}!`}
+          title={`Congratulation, ${winner} is the Chess Master!`}
           actions={winnerActions}
           open={showWinnerDialog}
         />
@@ -199,7 +208,6 @@ class Board extends Component {
     );
   }
 }
-
 function mapStateToProps(state) {
   const { gameState, boardState, moveState, userState, squareState } = state;
   const { playerColor, gameTurn, playerInCheck, winner, showCheckDialog,

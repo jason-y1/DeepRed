@@ -1,10 +1,10 @@
 import React, { Component } from 'react';
 import { Tabs, Tab } from 'material-ui/Tabs';
-import MobileTearSheet from './MobileTearSheet';
 import ChatBoxLocal from './ChatBoxLocal';
 import ChatBoxGlobal from './ChatBoxGlobal';
 import ChatMessageLocal from './ChatMessageLocal';
 import ChatMessageGlobal from './ChatMessageGlobal';
+import './css/Messages.css';
 
 class Messages extends Component {
 
@@ -21,44 +21,57 @@ class Messages extends Component {
   render() {
     const {
       messagesLocal, messagesGlobal, sendMessageLocal,
-      sendMessageGlobal, isWhite, thisUser,
+      sendMessageGlobal, isWhite, thisUser, gameMode,
     } = this.props;
 
-    return (<Tabs>
-      <Tab label="Local">
-        <MobileTearSheet>
-          {messagesLocal.map((msg, i) => (
-            <ChatMessageLocal
-              key={i + msg}
-              color={msg.color}
-              user={msg.user}
-              message={msg.message}
-              timeStamp={msg.timeStamp}
-            />
-          ))}
-          <div id="end-of-local" />
-        </MobileTearSheet>
-        <ChatBoxLocal sendMessageLocal={sendMessageLocal} isWhite={isWhite} thisUser={thisUser} />
-      </Tab>
-      <Tab label="Global">
-        <MobileTearSheet>
-          {messagesGlobal.map((msg, i) => (
-            <ChatMessageGlobal
-              key={i + msg}
-              isThisUser={msg.user === thisUser}
-              color={msg.color}
-              user={msg.user}
-              message={msg.message}
-              timeStamp={msg.timeStamp}
-            />
-          ))}
-          <div id="end-of-global" />
-        </MobileTearSheet>
-        <ChatBoxGlobal sendMessageGlobal={sendMessageGlobal} isWhite={isWhite} thisUser={thisUser} />
-      </Tab>
-    </Tabs>);
+    return (
+      <Tabs
+        inkBarStyle={{ background: '#00BCD4', zIndex: 1000 }}
+      >
+        <Tab
+          style={{ backgroundColor: '#C62828' }}
+          label={gameMode === 'default' ? 'LOCAL' : 'DEEPRED'}
+        >
+          <div className="messageslocal">
+            {messagesLocal.map((msg, i) => (
+              <ChatMessageLocal
+                key={i + msg}
+                color={msg.color}
+                user={msg.user}
+                message={msg.message}
+                timeStamp={msg.timeStamp}
+              />
+            ))}
+            <div id="end-of-local" />
+          </div>
+          <ChatBoxLocal sendMessageLocal={sendMessageLocal} isWhite={isWhite} thisUser={thisUser} />
+        </Tab>
+        <Tab
+          className="tab"
+          style={{ backgroundColor: '#C62828' }}
+          label="Global"
+        >
+          <div className="messageslocal">
+            {messagesGlobal.map((msg, i) => (
+              <ChatMessageGlobal
+                key={i + msg}
+                isThisUser={msg.user === thisUser}
+                color={msg.color}
+                user={msg.user}
+                message={msg.message}
+                timeStamp={msg.timeStamp}
+              />
+            ))}
+            <div id="end-of-global" />
+          </div>
+          <ChatBoxGlobal
+            sendMessageGlobal={sendMessageGlobal}
+            isWhite={isWhite}
+            thisUser={thisUser}
+          />
+        </Tab>
+      </Tabs>);
   }
 }
 
 export default Messages;
-

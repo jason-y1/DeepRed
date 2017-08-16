@@ -5,28 +5,33 @@ import injectTapEventPlugin from 'react-tap-event-plugin';
 import axios from 'axios';
 import FlatButton from 'material-ui/FlatButton';
 import RaisedButton from 'material-ui/RaisedButton';
+import Paper from 'material-ui/Paper';
+
 import {
   updateTimer, cancelPauseDialogClose, updateAlertName,
   cancelPauseDialogOpen, pauseDialogOpen, pauseDialogClose, setPlayer,
   updateRoomInfo, getRequestFailure, receiveGame, movePiece, resetBoolBoard,
   unselectPiece, capturePiece, displayError, colorSquare, sendMsgLocal, sendMsgGlobal,
   updateTimerB, timeInstanceB, updateTimerW, timeInstanceW, saveBoolBoard, castlingMove,
-  selectGameModeClose, selectGameModeOpen, selectRoomOpen, selectRoomClose,
-  selectSideOpen, selectSideClose, updateAllRooms, updateRoomQueue, setPlayerId,
+  selectGameModeClose, selectRoomOpen, selectRoomClose,
+  selectSideOpen, selectSideClose, updateAllRooms, setPlayerId,
   enPassantMove, pawnPromotionMove, resumeDialogOpen, resumeDialogClose, cancelResumeDialogOpen,
   cancelResumeDialogClose, announceSurrenderDialogOpen, announceSurrenderDialogClose,
-  updateGameMode, openWinnerDialog, openCheckDialog,
+  updateGameMode, openWinnerDialog, openCheckDialog, gameMode, turnClockOn, turnClockOff,
+  toggleSystemPause, confirmSurrenderDialogClose, confirmSurrenderDialogOpen, turnSnackbarOn,
+  timeoutDialogOpen, timeoutDialogClose,
 } from '../store/actions';
 // Components
 import Header from '../components/Header';
 import Board from './Board';
-import Message from '../components/Message';
 import CapturedPieces from '../components/CapturedPieces';
 import MoveHistory from '../components/MoveHistory';
 import Alert from './Alert';
+import AlertRoom from './AlertRoom';
 import PlayerName from '../components/PlayerName';
 import Clock from '../components/Clock';
 import Messages from '../components/Messages';
+import SnackBar from '../components/SnackBar';
 import './css/App.css';
 
 // Needed for onTouchTap
@@ -47,6 +52,7 @@ class App extends Component {
     this.toggleTimers = this.toggleTimers.bind(this);
     this.decrementTimerB = this.decrementTimerB.bind(this);
     this.decrementTimerW = this.decrementTimerW.bind(this);
+    this.closeDialog = this.closeDialog.bind(this);
     this.sendPauseRequest = this.sendPauseRequest.bind(this);
     this.sendResumeRequest = this.sendResumeRequest.bind(this);
     this.handlePauseOpen = this.handlePauseOpen.bind(this);
@@ -70,13 +76,25 @@ class App extends Component {
     this.handleAnnounceSurrenderClose = this.handleAnnounceSurrenderClose.bind(this);
     this.updateUserGameStat = this.updateUserGameStat.bind(this);
     this.winLoseResult = this.winLoseResult.bind(this);
-    this.closeDialog = this.closeDialog.bind(this);
-    // this.watson = this.watson.bind(this);
+    this.conversation = this.conversation.bind(this);
+    this.renderError = this.renderError.bind(this);
+    this.handleConfirmSurrenderOpen = this.handleConfirmSurrenderOpen.bind(this);
+    this.handleLobbyOpen = this.handleLobbyOpen.bind(this);
+    this.goToLobby = this.goToLobby.bind(this);
+    this.goToAbout = this.goToAbout.bind(this);
+    this.goToVictories = this.goToVictories.bind(this);
+    this.onTimeOut = this.onTimeOut.bind(this);
   }
 
   componentDidMount() {
     this.getUserInfo();
-    // this.watson();
+  }
+
+  onChangePlayerTurn() {
+    const { room, count, timeB, timeW } = this.props;
+    this.stopTimerB();
+    this.stopTimerW();
+    this.socket.emit('updateTime', room, count, timeB, timeW);
   }
 
   getUserInfo() {
@@ -97,19 +115,49 @@ class App extends Component {
       });
   }
 
-  // watson() {
-  //   const option = {
-  //     text: 'nice move',
-  //   };
+  conversation(message, context) {
+    message = message || '';
+    context = context || '';
+    const payload = {
+      intent: {
+        intent: context,
+      },
+      input: {
+        text: message,
+      },
+    };
+    axios.post('/api/game/conversation', payload)
+      .then((response) => {
+        const { dispatch, messagesLocal, thisUser } = this.props;
+        if (response.data.output.text[0]) {
+          dispatch(sendMsgLocal({
+            user: thisUser,
+            color: 'red',
+            message: response.data.output.text[0],
+            timeStamp: JSON.stringify(new Date()),
+          }));
+        }
+      })
+      .catch((err) => {
+        console.error('failed to send message to watson conversation service: ', err);
+      });
+  }
 
-  //   axios.post(option, '/api/game/conversation')
-  //     .then((response) => {
-  //       console.log('message sent!', response);
-  //     })
-  //     .catch((err) => {
-  //       console.error(err);
-  //     });
-  // }
+  renderError(error) {
+    axios.post('/api/game/errorMessage', { input: error })
+      .then((response) => {
+        const { dispatch, messagesLocal, thisUser } = this.props;
+        dispatch(sendMsgLocal({
+          user: thisUser,
+          color: 'red',
+          message: response.data,
+          timeStamp: JSON.stringify(new Date()),
+        }));
+      })
+      .catch((err) => {
+        console.error('failed to fetch error message ', err);
+      });
+  }
 
   updateUserGameStat(arr) {
     axios.post('/api/game/updateUserGameStat', arr)
@@ -122,9 +170,7 @@ class App extends Component {
   }
 
   startSocket() {
-    const { dispatch, playerW, playerB, thisUser, thisEmail, room, count,
-       gameTurn, timeB, timeW } = this.props;
-
+    const { dispatch, thisUser, thisEmail, playerB, playerW, gameMode, gameTurn } = this.props;
     const name = thisUser;
     const email = thisEmail;
     // instantiate socket instance on the client side
@@ -151,11 +197,16 @@ class App extends Component {
       dispatch(selectRoomClose());
       dispatch(updateAllRooms(allRooms));
       dispatch(updateRoomInfo(roomInfo));
-      dispatch(updateTimer(roomInfo));
       if (game) {
         dispatch(receiveGame(game));
       }
-      this.decrementTimerW();
+      dispatch(updateTimer(roomInfo));
+      dispatch(turnClockOn());
+      if (gameMode !== 'AI' && gameTurn !== 'W') {
+        this.decrementTimerW();
+      } else {
+        this.toggleTimers();
+      }
     });
 
     this.socket.on('messageLocal', (msg) => {
@@ -167,6 +218,11 @@ class App extends Component {
     });
 
     this.socket.on('attemptMoveResult', (error, game, origin, dest, selection) => {
+      // console.log('+++++++++++++++++++++++++++++move: ', game.event);
+      // if gameTurn color and the captured piece color are opposite,
+      // that means it is a win,
+      // if the gameTurn color and the captured piece's color are the same
+      // that measn it is on the losing side
       if (error === null) {
         // if (pawnPromotionPiece) {
         //   dispatch(pawnPromotionMove(origin, dest, pawnPromotionPiece, gameTurn));
@@ -179,16 +235,143 @@ class App extends Component {
         // } else {
         //   dispatch(movePiece(origin, dest, gameTurn));
         // }
+        const captureTable = {
+          BP: 'capture',
+          BB: 'capture',
+          BR: 'capture',
+          BN: 'capture',
+          BQ: 'capture',
+          WP: 'capture',
+          WB: 'capture',
+          WR: 'capture',
+          WN: 'capture',
+          WQ: 'capture',
+        };
+
+        const specialTable = {
+          '+B': 'check',
+          '+W': 'check',
+          '#B': 'checkMate',
+          '#W': 'checkMate',
+          '=BQ': 'promotion',
+          '=WQ': 'promotion',
+          enpassant: 'enpassant',
+          castle: 'castle',
+        };
+
+        let intent = '';
+        let text = '';
+
+        if (game.event.length !== 0) {
+          const { gameTurn, thisUser, playerW, playerB, snackbarOpen } = this.props;
+          for (let i = 0; i < game.event.length; i += 1) {
+            // for capture event
+            if (captureTable.hasOwnProperty(game.event[i])) {
+              if (thisUser === playerW) {
+                if (game.event[i][0] === 'W') {
+                  intent = `${captureTable[game.event[i]]}Lose`;
+                } else {
+                  intent = `${captureTable[game.event[i]]}Win`;
+                }
+              }
+              if (thisUser === playerB) {
+                if (game.event[i][0] === 'B') {
+                  intent = `${captureTable[game.event[i]]}Lose`;
+                } else {
+                  intent = `${captureTable[game.event[i]]}Win`;
+                }
+              }
+            }
+            // for special events
+            if (specialTable.hasOwnProperty(game.event[i])) {
+              if (thisUser === playerW) {
+                if (game.event[i] === '+B') {
+                  intent = `${specialTable[game.event[i]]}Win`;
+                }
+                if (game.event[i] === '+W') {
+                  intent = `${specialTable[game.event[i]]}Lose`;
+                }
+                if (game.event[i] === '#B') {
+                  intent = `${specialTable[game.event[i]]}Lose`;
+                }
+                if (game.event[i] === '#W') {
+                  intent = `${specialTable[game.event[i]]}Win`;
+                }
+                if (game.event[i] === '=BQ') {
+                  intent = `${specialTable[game.event[i]]}Lose`;
+                }
+                if (game.event[i] === '=WQ') {
+                  intent = `${specialTable[game.event[i]]}Win`;
+                }
+                if (game.event[i] === 'enpassant' && gameTurn === 'W') {
+                  intent = `${specialTable[game.event[i]]}Win`;
+                }
+                if (game.event[i] === 'castle' && gameTurn === 'W' && thisUser === playerW) {
+                  intent = `${specialTable[game.event[i]]}Win`;
+                }
+              }
+              if (thisUser === playerB) {
+                if (game.event[i] === '+B') {
+                  intent = `${specialTable[game.event[i]]}Lose`;
+                }
+                if (game.event[i] === '+W') {
+                  intent = `${specialTable[game.event[i]]}Win`;
+                }
+                if (game.event[i] === '#B') {
+                  intent = `${specialTable[game.event[i]]}Win`;
+                }
+                if (game.event[i] === '#W') {
+                  intent = `${specialTable[game.event[i]]}Lose`;
+                }
+                if (game.event[i] === '=BQ') {
+                  intent = `${specialTable[game.event[i]]}Win`;
+                }
+                if (game.event[i] === '=WQ') {
+                  intent = `${specialTable[game.event[i]]}Lose`;
+                }
+                if (game.event[i] === 'enpassant' && gameTurn === 'B') {
+                  intent = `${specialTable[game.event[i]]}Win`;
+                }
+                if (game.event[i] === 'castle' && gameTurn === 'B' && thisUser === playerB) {
+                  intent = `${specialTable[game.event[i]]}Win`;
+                }
+              }
+            }
+            if (intent.slice(-3) === 'Win') {
+              text = `${game.event[i]}W`;
+            } else {
+              text = game.event[i];
+            }
+            if (intent) {
+              if (text === '+BW' || text === '+WW' || text === '+B' || text === '+W') {
+                dispatch(turnSnackbarOn());
+              }
+              this.conversation(text, intent);
+            }
+          }
+        }
         dispatch(receiveGame(game));
         if (game.winner) {
-          dispatch(openWinnerDialog(game.winner));
+          const { playerW, playerB } = this.props;
+          let winner = null;
+          if (game.winner === 'W') {
+            dispatch(openWinnerDialog(playerW));
+          } else {
+            dispatch(openWinnerDialog(playerB));
+          }
         } else if (game.playerInCheck) {
           dispatch(openCheckDialog(game.playerInCheck));
         }
         this.toggleTimers();
       } else {
         console.log('ERROR: ', error);
-        dispatch(displayError(error));
+        const { playerW, playerB, gameTurn } = this.props;
+        // dispatch(displayError(error));
+        if (((gameTurn === 'W' && thisUser === playerW)
+          || (gameTurn === 'B' && thisUser === playerB))) {
+          // this.conversation(error);
+          this.renderError(error);
+        }
       }
       dispatch(unselectPiece());
       dispatch(resetBoolBoard());
@@ -218,6 +401,8 @@ class App extends Component {
     });
 
     this.socket.on('executePauseRequest', () => {
+      dispatch(toggleSystemPause());
+      this.renderError('game has paused!');
       this.onChangePlayerTurn();
     });
 
@@ -240,7 +425,9 @@ class App extends Component {
     });
 
     this.socket.on('executeResumeRequest', () => {
-      const { gameTurn } = this.props;
+      const { dispatch, gameTurn } = this.props;
+      this.renderError('game has resumed!');
+      dispatch(toggleSystemPause());
       if (gameTurn === 'W') {
         this.decrementTimerW();
       }
@@ -267,7 +454,12 @@ class App extends Component {
       dispatch(updateTimer(roomInfo));
     });
 
-    this.socket.on('updateAllRooms', (allRooms) => {
+    this.socket.on('updateAllRooms', (allRooms, ) => {
+      // if (roomInfo.playerW === undefined || roomInfo.playerB === undefined) {
+      //   dispatch(turnClockOff());
+      // }
+      // dispatch(updateTimer(roomInfo));
+      // dispatch(updateRoomInfo(roomInfo));
       dispatch(updateAllRooms(allRooms));
     });
 
@@ -296,14 +488,14 @@ class App extends Component {
   }
 
   decrementTimerB() {
-    const { dispatch, playerWemail, playerBemail } = this.props;
+    const { dispatch, playerWemail, playerBemail, playerW } = this.props;
     let { timeB, counterBinstance } = this.props;
     counterBinstance = setInterval(() => {
       if (timeB > 0) {
         timeB -= 1;
       } else {
         timeB = 0;
-        this.stopTimerB();
+        this.onTimeOut(playerW);
         this.updateUserGameStat(this.winLoseResult(playerWemail, playerBemail));
       }
       dispatch(updateTimerB(timeB));
@@ -312,19 +504,26 @@ class App extends Component {
   }
 
   decrementTimerW() {
-    const { dispatch, playerWemail, playerBemail } = this.props;
+    const { dispatch, playerWemail, playerBemail, playerB } = this.props;
     let { timeW, counterWinstance } = this.props;
     counterWinstance = setInterval(() => {
       if (timeW > 0) {
         timeW -= 1;
       } else {
         timeW = 0;
-        this.stopTimerW();
+        this.onTimeOut(playerB);
         this.updateUserGameStat(this.winLoseResult(playerWemail, playerBemail));
       }
       dispatch(updateTimerW(timeW));
       dispatch(timeInstanceW(counterWinstance));
     }, 1000);
+  }
+
+  onTimeOut(player) {
+    const { dispatch } = this.props;
+    this.onChangePlayerTurn();
+    dispatch(updateAlertName(player));
+    dispatch(timeoutDialogOpen());
   }
 
   stopTimerB() {
@@ -339,21 +538,33 @@ class App extends Component {
     clearInterval(counterWinstance);
   }
 
-  onChangePlayerTurn() {
-    const { room, count, timeB, timeW } = this.props;
-    this.stopTimerB();
-    this.stopTimerW();
-    this.socket.emit('updateTime', room, count, timeB, timeW);
-  }
-
   // CONTROL function
   closeDialog() {
     const { dispatch } = this.props;
     dispatch(selectRoomClose());
+    window.location = '/login';
+  }
+
+  goToLobby() {
+    window.location = '/';
+  }
+
+  goToAbout() {
+    window.location = '/about';
+  }
+
+  goToVictories() {
+    window.location = '/victories';
   }
 
   handleSurrender() {
-    const { thisUser, room } = this.props;
+    const { dispatch } = this.props;
+    dispatch(confirmSurrenderDialogOpen());
+  }
+
+  handleConfirmSurrenderOpen() {
+    const { dispatch, thisUser, room } = this.props;
+    dispatch(confirmSurrenderDialogClose());
     this.socket.emit('onSurrender', thisUser, room);
   }
 
@@ -382,9 +593,9 @@ class App extends Component {
   }
 
   onAgreePauseRequest() {
-    const { dispatch, count } = this.props;
+    const { dispatch, count, gameMode } = this.props;
     dispatch(pauseDialogClose());
-    this.socket.emit('agreePauseRequest', count, this.socket.id);
+    this.socket.emit('agreePauseRequest', count, this.socket.id, gameMode);
   }
 
   onCancelPauseRequest() {
@@ -400,13 +611,21 @@ class App extends Component {
   }
 
   sendPauseRequest() {
-    const { room } = this.props;
-    this.socket.emit('requestPause', room);
+    const { room, systemPause } = this.props;
+    if (systemPause === true) {
+      this.renderError('game is already in pause :)');
+    } else {
+      this.socket.emit('requestPause', room);
+    }
   }
 
   sendResumeRequest() {
-    const { room } = this.props;
-    this.socket.emit('requestResume', room);
+    const { room, systemPause } = this.props;
+    if (systemPause === false) {
+      this.renderError('current game is still running');
+    } else {
+      this.socket.emit('requestResume', room);
+    }
   }
 
   onCancelResumeRequest() {
@@ -416,9 +635,9 @@ class App extends Component {
   }
 
   onAgreeResumeRequest() {
-    const { dispatch, count } = this.props;
+    const { dispatch, count, gameMode } = this.props;
     dispatch(resumeDialogClose());
-    this.socket.emit('agreeResumeRequest', count, this.socket.id);
+    this.socket.emit('agreeResumeRequest', count, this.socket.id, gameMode);
   }
 
   handleCancelResumeClose() {
@@ -450,11 +669,18 @@ class App extends Component {
   handleAnnounceSurrenderClose() {
     const { dispatch } = this.props;
     dispatch(announceSurrenderDialogClose());
+    dispatch(confirmSurrenderDialogClose());
+    dispatch(timeoutDialogClose());
   }
 
   handleAnnounceSurrenderOpen() {
     const { dispatch } = this.props;
     dispatch(announceSurrenderDialogOpen());
+  }
+
+  handleLobbyOpen() {
+    const { dispatch } = this.props;
+    dispatch(selectRoomOpen());
   }
   // LOGIC
   newChessGame() {
@@ -494,19 +720,26 @@ class App extends Component {
       capturedPiecesBlack, capturedPiecesWhite, resumeOpen,
       playerB, playerW, error, messagesLocal, messagesGlobal, isWhite, thisUser,
       chooseGameModeOpen, chooseRoomOpen, chooseSideOpen, allRooms,
-      cancelResumeOpen, surrenderOpen,
+      cancelResumeOpen, surrenderOpen, gameMode, showClock, surrenderConfirmOpen,
+      snackbarOpen, timeoutOpen,
     } = this.props;
+
+    const actionStyle = {
+      margin: '3px',
+      padding: '3px',
+    };
 
     const pauseActions = [
       <FlatButton
         label="No"
         primary
+        style={actionStyle}
         onTouchTap={this.onCancelPauseRequest}
       />,
       <FlatButton
         label="Yes"
         primary
-        keyboardFocused
+        style={actionStyle}
         onTouchTap={this.onAgreePauseRequest}
       />,
     ];
@@ -515,11 +748,13 @@ class App extends Component {
       <FlatButton
         label="No"
         primary
+        style={actionStyle}
         onTouchTap={this.onCancelResumeRequest}
       />,
       <FlatButton
         label="yes"
         primary
+        style={actionStyle}
         onTouchTap={this.onAgreeResumeRequest}
       />,
     ];
@@ -529,6 +764,7 @@ class App extends Component {
         label="Ok"
         primary
         keyboardFocused
+        style={actionStyle}
         onTouchTap={this.handleCancelPauseClose}
       />,
     ];
@@ -538,15 +774,29 @@ class App extends Component {
         label="Ok"
         primary
         keyboardFocused
+        style={actionStyle}
         onTouchTap={this.handleCancelResumeClose}
       />,
     ];
 
     const selectRoomActions = [
       <RaisedButton
-        label="Close"
-        secondary
+        label="About Us"
+        backgroundColor="#F44336"
+        labelColor="#FFF"
         keyboardFocused
+        onTouchTap={this.goToAbout}
+      />,
+      <RaisedButton
+        label="Victories"
+        backgroundColor="#F44336"
+        labelColor="#FFF"
+        onTouchTap={this.goToVictories}
+      />,
+      <RaisedButton
+        label="Log Out"
+        backgroundColor="#F44336"
+        labelColor="#FFF"
         onTouchTap={this.closeDialog}
       />,
     ];
@@ -554,8 +804,30 @@ class App extends Component {
     const surrenderActions = [
       <RaisedButton
         label="Ok"
-        secondary
+        primary
+        style={actionStyle}
         onTouchTap={this.handleAnnounceSurrenderClose}
+      />,
+      <RaisedButton
+        label="Back to Lobby"
+        secondary
+        style={actionStyle}
+        onTouchTap={this.goToLobby}
+      />,
+    ];
+
+    const confirmSurrenderActions = [
+      <RaisedButton
+        label="No"
+        secondary
+        style={actionStyle}
+        onTouchTap={this.handleAnnounceSurrenderClose}
+      />,
+      <RaisedButton
+        label="Yes"
+        primary
+        style={actionStyle}
+        onTouchTap={this.handleConfirmSurrenderOpen}
       />,
     ];
 
@@ -565,10 +837,14 @@ class App extends Component {
           sendPauseRequest={this.sendPauseRequest}
           sendResumeRequest={this.sendResumeRequest}
           handleSurrender={this.handleSurrender}
+          handleLobbyOpen={this.handleLobbyOpen}
         />
         <div className="content">
           <div className="flex-row">
-            <div className="flex-col left-col">
+            <Paper
+              className="flex-col left-col"
+              zDepth={2}
+            >
               <div className="left-col-row">
                 <div className="player-top">
                   <PlayerName
@@ -578,17 +854,15 @@ class App extends Component {
                   />
                 </div>
                 <div className="countdown-top-clock">
-                  {(playerB !== undefined) ?
+                  {(playerB !== undefined && showClock === true) ?
                     <Clock color={(!isWhite) ? 'White' : 'Black'} /> : null
                   }
                 </div>
-                <div className="move-history">
-                  <MoveHistory
-                    moveHistory={moveHistory}
-                  />
-                </div>
+                <MoveHistory
+                  moveHistory={moveHistory}
+                />
                 <div className="countdown-bot-clock">
-                  {(playerB !== undefined) ?
+                  {(playerB !== undefined && showClock === true) ?
                     <Clock color={(isWhite) ? 'White' : 'Black'} /> : null
                   }
                 </div>
@@ -600,8 +874,8 @@ class App extends Component {
                   />
                 </div>
               </div>
-            </div>
-            <div className="flex-col capt-col">
+            </Paper>
+            <Paper style={{ backgroundColor: '#78909C' }} className="flex-col capt-col" zDepth={2}>
               <div className="flex-col capt-black-col">
                 <CapturedPieces
                   color={(!isWhite) ? 'White' : 'Black'}
@@ -616,15 +890,20 @@ class App extends Component {
                   player={(isWhite) ? playerW : playerB}
                 />
               </div>
-            </div>
+            </Paper>
             <div className="flex-col">
-              <Board attemptMove={this.attemptMove} checkLegalMoves={this.checkLegalMoves} />
+              <Board
+                goToLobby={this.goToLobby}
+                attemptMove={this.attemptMove}
+                checkLegalMoves={this.checkLegalMoves}
+                conversation={this.conversation}
+                renderError={this.renderError}
+              />
               {/* <Message message={message} />
               <Message message={error} /> */}
             </div>
 
-            <div className="flex-col right-col">
-              <Message message={error} />
+            <Paper className="flex-col right-col" zDepth={2}>
               <Messages
                 messagesLocal={messagesLocal}
                 sendMessageLocal={this.sendMessageLocal}
@@ -632,14 +911,16 @@ class App extends Component {
                 sendMessageGlobal={this.sendMessageGlobal}
                 isWhite={isWhite}
                 thisUser={thisUser}
+                gameMode={gameMode}
               />
-            </div>
+            </Paper>
 
             <div className="control-general">
               <Alert
                 className="pause-request"
                 title="Would you like to pause this game?"
                 actions={pauseActions}
+                persist
                 open={pauseOpen}
                 handleClose={this.handlePauseClose}
               />
@@ -652,9 +933,10 @@ class App extends Component {
               />
               <Alert
                 className="resume-request"
-                title="Are you ready to resume this game?"
+                title="Are you ready to resume game?"
                 actions={resumeActions}
                 open={resumeOpen}
+                persist
                 handleClose={this.handleCancelResumeClose}
               />
               <Alert
@@ -666,14 +948,21 @@ class App extends Component {
               />
               <Alert
                 className="announce-surrender"
-                title={`${alertName} has surrendered`}
+                title={`${alertName} has surrendered.`}
                 actions={surrenderActions}
                 open={surrenderOpen}
                 handleClose={this.handleAnnounceSurrenderClose}
               />
+              <Alert
+                className="confirm-surrender"
+                title={'Are you sure you wish to surrender?'}
+                actions={confirmSurrenderActions}
+                open={surrenderConfirmOpen}
+                handleClose={this.handleAnnounceSurrenderClose}
+              />
             </div>
             <div className="control-room">
-              <Alert
+              <AlertRoom
                 thisUser={thisUser}
                 allRooms={allRooms}
                 handleCreateRoomAsWhite={this.handleCreateRoomAsWhite}
@@ -686,11 +975,26 @@ class App extends Component {
                 messagesLocal={messagesLocal}
                 isWhite={isWhite}
                 showRooms
-                className="choose-room"
-                title={'Choose or create a room to join:'}
+                title={'Join or create a room:'}
                 actions={selectRoomActions}
+                // actionsContainerStyle={{padding: '10vw'}}
                 open={chooseRoomOpen}
+                actionsContainerClassName="test"
+                bodyClassName="test"
+                className="test"
+                contentClassName="test"
+                overlayClassName="test"
+                titleClassName="test"
               />
+              <Alert
+                className="timeout-dialog"
+                title={`Out of time, ${alertName} is the Chess Master!`}
+                actions={surrenderActions}
+                open={timeoutOpen}
+              />
+            </div>
+            <div className="snack-bar">
+              <SnackBar />
             </div>
           </div>
         </div>
@@ -729,6 +1033,11 @@ function mapStateToProps(state) {
   } = userState;
   const { message, error } = moveState;
   const {
+    timeoutOpen,
+    snackbarOpen,
+    surrenderConfirmOpen,
+    systemPause,
+    showClock,
     surrenderOpen,
     resumeOpen,
     pauseOpen,
@@ -740,6 +1049,11 @@ function mapStateToProps(state) {
     chooseSideOpen,
   } = controlState;
   return {
+    timeoutOpen,
+    snackbarOpen,
+    surrenderConfirmOpen,
+    systemPause,
+    showClock,
     gameMode,
     surrenderOpen,
     cancelResumeOpen,

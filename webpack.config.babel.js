@@ -1,6 +1,7 @@
 import webpack from 'webpack';
 import path from 'path';
 import HtmlWebpackPlugin from 'html-webpack-plugin';
+import CompressionPlugin from 'compression-webpack-plugin';
 
 const config = {
   entry: './client/src/app',
@@ -35,8 +36,22 @@ const config = {
     new HtmlWebpackPlugin({
       template: path.join(__dirname, './client/src/index.html'),
     }),
+    new webpack.optimize.UglifyJsPlugin(),
+    new webpack.optimize.AggressiveMergingPlugin(),
+    // new webpack.DefinePlugin({
+    //   'process.env': {
+    //     NODE_ENV: JSON.stringify('production'),
+    //   },
+    // }),
+    new CompressionPlugin({
+      asset: '[path].gz[query]',
+      algorithm: 'gzip',
+      test: /\.js$|\.css$|\.html$/,
+      threshold: 10240,
+      minRatio: 0.8,
+    }),
   ],
-  devtool: 'eval-source-map',
+  // devtool: 'eval-source-map',
   devServer: {
     contentBase: path.join(__dirname, 'public'),
     compress: true,
@@ -47,6 +62,7 @@ const config = {
     },
     inline: true,
     hot: true,
+    historyApiFallback: true,
     proxy: {
       '/api': 'http://localhost:3000',
     },

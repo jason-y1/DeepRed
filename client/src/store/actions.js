@@ -64,6 +64,31 @@ export const resetBoolBoard = () => ({
   type: types.RESET_BOOL_BOARD,
 });
 
+export const hideAIButton = () => ({
+  type: types.HIDE_AI_BUTTON,
+});
+
+export const showAIButton = () => ({
+  type: types.SHOW_AI_BUTTON,
+});
+
+export const updateGameSummary = gameSummary => ({
+  type: types.UPDATE_GAME_SUMMARY,
+  games: gameSummary.games,
+  whiteWins: gameSummary.whiteWins,
+  blackWins: gameSummary.blackWins,
+  stalemateByMoves: gameSummary.stalemateByMoves,
+  stalemateByPieces: gameSummary.stalemateByPieces,
+  stalemateNoWhiteMoves: gameSummary.stalemateNoWhiteMoves,
+  stalemateNoBlackMoves: gameSummary.stalemateNoBlackMoves,
+  end100moves: gameSummary.end100moves,
+  castleKing: gameSummary.castleKing,
+  castleQueen: gameSummary.castleQueen,
+  pawnPromotion: gameSummary.pawnPromotion,
+  enPassant: gameSummary.enPassant,
+  averageMovesPerGame: gameSummary.averageMovesPerGame,
+});
+
 export const unselectPiece = () => ({
   type: types.UNSELECT_PIECE,
 });
@@ -157,6 +182,25 @@ export const receiveGame = game => ({
   game,
 });
 
+export const updateBoard = board => ({
+  type: types.UPDATE_BOARD,
+  board,
+});
+
+export const resetBoard = () => ({
+  type: types.RESET_BOARD,
+});
+
+export const updateCapturedPieces = (blackCapPieces, whiteCapPieces) => ({
+  type: types.UPDATE_CAPTURED_PIECES,
+  blackCapPieces,
+  whiteCapPieces,
+});
+
+export const clearCapturedPieces = () => ({
+  type: types.CLEAR_CAPTURED_PIECES,
+});
+
 // userState actions
 export const setPlayer = player => ({
   type: types.SET_PLAYER,
@@ -246,6 +290,14 @@ export const announceSurrenderDialogClose = () => ({
   type: types.ANNOUNCE_SURRENDER_DIALOG_CLOSE,
 });
 
+export const confirmSurrenderDialogOpen = () => ({
+  type: types.CONFIRM_SURRENDER_DIALOG_OPEN,
+});
+
+export const confirmSurrenderDialogClose = () => ({
+  type: types.CONFIRM_SURRENDER_DIALOG_CLOSE,
+});
+
 export const selectGameModeOpen = () => ({
   type: types.SELECT_GAME_MODE_OPEN,
 });
@@ -268,6 +320,44 @@ export const selectSideOpen = () => ({
 
 export const selectSideClose = () => ({
   type: types.SELECT_SIDE_CLOSE,
+});
+
+export const turnClockOn = () => ({
+  type: types.TURN_CLOCK_ON,
+});
+
+export const turnClockOff = () => ({
+  type: types.TURN_CLOCK_OFF,
+});
+
+export const toggleSystemPause = () => ({
+  type: types.TOGGLE_SYSTEM_PAUSE,
+});
+
+export const toggleSystemResume = () => ({
+  type: types.TOGGLE_SYSTEM_RESUME,
+});
+
+export const turnSnackbarOn = () => ({
+  type: types.TURN_SNACKBAR_ON,
+});
+
+export const turnSnackbarOff = () => ({
+  type: types.TURN_SNACKBAR_OFF,
+});
+
+export const timeoutDialogOpen = () => ({
+  type: types.TIMEOUT_DIALOG_OPEN,
+});
+
+export const timeoutDialogClose = () => ({
+  type: types.TIMEOUT_DIALOG_CLOSE,
+});
+
+// infoState actions
+export const updateLoserList = loserList => ({
+  type: types.UPDATE_LOSER_LIST,
+  loserList,
 });
 
 // other requests

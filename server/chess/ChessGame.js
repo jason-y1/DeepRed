@@ -10,8 +10,8 @@
 const isLegalMove = require('./isLegalMove');
 const { isCheckmateWhite, isStalemateBlack, blackIsChecked, isCheckmateBlack,
 isStalemateWhite, whiteIsChecked } = require('./deepRed/endGameChecks');
-const { whiteMove, blackMove } = require('./deepRed/playerVsAI');
 const { encodeWithState } = require('./chessEncode');
+const { chooseBestMoveFromDB } = require('./moveSelection/movesFromDB');
 const chessDB = require('../chessDB');
 
 class ChessGame {
@@ -44,84 +44,87 @@ class ChessGame {
     this.event = [];
   }
 
-  movePiece(origin, dest, pawnPromotionValue = null, gameMode = 'default') {
+  movePiece(origin, dest, cb, pawnPromotionValue = null, gameMode = 'default') {
     const error = this.errorCheck(origin, dest);
     if (error) {
-      return { game: this, error };
+      cb({ game: this, error });
+    } else {
+      this.event = [];
+      const originPiece = this.board[origin[0]][origin[1]];
+      const destPiece = this.board[dest[0]][dest[1]];
+      const legalMoveResult = isLegalMove(this, origin, dest);
+      if (legalMoveResult.bool) {
+        // prevent putting yourself in check
+        const testBoard = this.board.map(row => row.map(x => x));
+        testBoard[dest[0]][dest[1]] = originPiece;
+        testBoard[origin[0]][origin[1]] = null;
+        if (this.turn === 'W' && whiteIsChecked(testBoard)) {
+          cb({
+            game: this,
+            error: 'Cannot leave yourself in check.',
+          });
+        } else if (this.turn === 'B' && blackIsChecked(testBoard)) {
+          cb({
+            game: this,
+            error: 'Cannot leave yourself in check.',
+          });
+        } else {
+          // handle castling
+          if (legalMoveResult.castling) {
+            this.castlingMove(legalMoveResult.castling);
+            this.event.push('castle');
+          }
+          this.toggleMovedRooksOrKings(origin, originPiece);
+          // handle toggling en Passant
+          if (legalMoveResult.enPassant) {
+            const pawn = this.board[this.canEnPassant[0]][this.canEnPassant[1]];
+            this.addToCaptureArray(pawn);
+            this.board[this.canEnPassant[0]][this.canEnPassant[1]] = null;
+            this.event.push('enpassant');
+          }
+          this.canEnPassant = legalMoveResult.canEnPassant || [];
+          // add to capture array
+          if (destPiece) {
+            this.addToCaptureArray(destPiece);
+            this.event.push(destPiece);
+          }
+
+          // swap location
+          this.board[dest[0]][dest[1]] = originPiece;
+          this.board[origin[0]][origin[1]] = null;
+
+          // handle pawn promotion
+          let pawnPromotionPiece = null;
+          if (pawnPromotionValue) {
+            pawnPromotionPiece = originPiece[0] + pawnPromotionValue;
+            this.promotePawn(originPiece, dest, pawnPromotionPiece);
+            this.event.push(`=${pawnPromotionPiece}`);
+          }
+          // check for check/checkmate/stalemate
+          const pieceStateForEncode = this.generatePieceState();
+          this.history.push(encodeWithState(this.board, pieceStateForEncode));
+          this.endGameChecks();
+          this.turn = (this.turn === 'W') ? 'B' : 'W';
+          this.moveHistoryEntry.push(this.generateMoveHistoryEntry(origin, dest,
+            destPiece, pawnPromotionValue, legalMoveResult));
+          if (gameMode === 'AI' && !this.winner) {
+            this.moveAI(cb);
+          } else {
+            // console.log(this.history);
+            // console.log(this.board);
+            // console.log('Move piece is successful.');
+            cb({
+              game: this,
+              error: null,
+            });
+          }
+        }
+      } else {
+        // console.log(this.board);
+        // console.log(error);
+        cb({ game: this, error: 'Move is not allowed.' });
+      }
     }
-    this.event = [];
-    const originPiece = this.board[origin[0]][origin[1]];
-    const destPiece = this.board[dest[0]][dest[1]];
-    const legalMoveResult = isLegalMove(this, origin, dest);
-    if (legalMoveResult.bool) {
-      // prevent putting yourself in check
-      const testBoard = this.board.map(row => row.map(x => x));
-      testBoard[dest[0]][dest[1]] = originPiece;
-      testBoard[origin[0]][origin[1]] = null;
-      if (this.turn === 'W' && whiteIsChecked(testBoard)) {
-        return {
-          game: this,
-          error: 'Cannot leave yourself in check.',
-        };
-      } else if (this.turn === 'B' && blackIsChecked(testBoard)) {
-        return {
-          game: this,
-          error: 'Cannot leave yourself in check.',
-        };
-      }
-
-      // handle castling
-      if (legalMoveResult.castling) {
-        this.castlingMove(legalMoveResult.castling);
-        this.event.push('castle');
-      }
-      this.toggleMovedRooksOrKings(origin, originPiece);
-      // handle toggling en Passant
-      if (legalMoveResult.enPassant) {
-        const pawn = this.board[this.canEnPassant[0]][this.canEnPassant[1]];
-        this.addToCaptureArray(pawn);
-        this.board[this.canEnPassant[0]][this.canEnPassant[1]] = null;
-        this.event.push('enpassant');
-      }
-      this.canEnPassant = legalMoveResult.canEnPassant || [];
-      // add to capture array
-      if (destPiece) {
-        this.addToCaptureArray(destPiece);
-        this.event.push(destPiece);
-      }
-
-      // swap location
-      this.board[dest[0]][dest[1]] = originPiece;
-      this.board[origin[0]][origin[1]] = null;
-
-      // handle pawn promotion
-      let pawnPromotionPiece = null;
-      if (pawnPromotionValue) {
-        pawnPromotionPiece = originPiece[0] + pawnPromotionValue;
-        this.promotePawn(originPiece, dest, pawnPromotionPiece);
-        this.event.push(`=${pawnPromotionPiece}`);
-      }
-      // check for check/checkmate/stalemate
-      const pieceStateForEncode = this.generatePieceState();
-      this.history.push(encodeWithState(this.board, pieceStateForEncode));
-      this.endGameChecks();
-      this.turn = (this.turn === 'W') ? 'B' : 'W';
-      this.moveHistoryEntry.push(this.generateMoveHistoryEntry(origin, dest,
-        destPiece, pawnPromotionValue, legalMoveResult));
-      if (gameMode === 'AI' && !this.winner) {
-        this.moveAI();
-      }
-      // console.log(this.history);
-      // console.log(this.board);
-      // console.log('Move piece is successful.');
-      return {
-        game: this,
-        error: null,
-      };
-    }
-    // console.log(this.board);
-    // console.log(error);
-    return { game: this, error: 'Move is not allowed.' };
   }
 
   errorCheck(origin, dest) {
@@ -214,7 +217,7 @@ class ChessGame {
   }
 
   promotePawn(originPiece, dest, pawnPromotionPiece) {
-    if ((originPiece === 'WP' && dest[0] === 0) || (originPiece === 'BP' && dest[0] === 7)) {
+    if ((originPiece === 'WP' && (dest[0] === 0 || dest[0] === '0')) || (originPiece === 'BP' && (dest[0] === 7 || dest[0] === '7'))) {
       this.board[dest[0]][dest[1]] = pawnPromotionPiece;
     }
   }
@@ -258,10 +261,8 @@ class ChessGame {
           //     });
           //   }
           // }
-
       } else if (isStalemateBlack(this.board)) {
         this.winner = 'D';
-
           // for (var i = 1; i < this.history.length; i++) {
           //   if (i % 2 === 1){
           //     chessDB.saveDeepRedWhite({
@@ -283,7 +284,6 @@ class ChessGame {
           //     });
           //   }
           // }
-
       } else if (blackIsChecked(this.board)) {
         this.playerInCheck = 'B';
       } else {
@@ -314,7 +314,6 @@ class ChessGame {
           //     });
           //   }
           // }
-
       } else if (isStalemateWhite(this.board)) {
         this.winner = 'D';
 
@@ -402,28 +401,41 @@ class ChessGame {
     return returnStr;
   }
 
-  moveAI() {
+  moveAI(cb) {
     const pieceState = this.generatePieceState();
-    let deepRedMove;
-    if (this.turn === 'W') {
-      deepRedMove = whiteMove(this.board, pieceState);
-    } else if (this.turn === 'B') {
-      deepRedMove = blackMove(this.board, pieceState);
-    }
-    let deepRedOrigin;
-    let deepRedDest;
-    let deepRedPawnPromotionValue = null;
-    if (Array.isArray(deepRedMove[0])) {
-      deepRedOrigin = [parseInt(deepRedMove[0][0][0], 10), parseInt(deepRedMove[0][0][1], 10)];
-      deepRedDest = deepRedMove[0][1];
-    } else if (typeof deepRedMove[0] === 'object') {
-      deepRedOrigin = deepRedMove.from;
-      deepRedDest = deepRedMove.to;
-      if (deepRedMove.newPiece) {
-        deepRedPawnPromotionValue = deepRedMove.newPiece[1];
+    const encodedBoard = encodeWithState(this.board, pieceState);
+    const callback = (deepRedMove) => {
+      let deepRedOrigin;
+      let deepRedDest;
+      let deepRedPawnPromotionValue = null;
+      if (Array.isArray(deepRedMove)) {
+        deepRedOrigin = [parseInt(deepRedMove[0][0], 10), parseInt(deepRedMove[0][1], 10)];
+        deepRedDest = deepRedMove[1];
+      } else if (typeof deepRedMove === 'object') {
+        if (deepRedMove.newPiece) {
+          deepRedOrigin = [parseInt(deepRedMove.from[0], 10), parseInt(deepRedMove.from[1], 10)];
+          deepRedDest = [parseInt(deepRedMove.to[0], 10), parseInt(deepRedMove.to[1], 10)];
+          deepRedPawnPromotionValue = deepRedMove.newPiece[1];
+        }
+        if (deepRedMove.move === 'castle') {
+          if (deepRedMove.color === 'W' && deepRedMove.side === 'O-O') {
+            deepRedOrigin = [7, 4];
+            deepRedDest = [7, 6];
+          } else if (deepRedMove.color === 'W' && deepRedMove.side === 'O-O-O') {
+            deepRedOrigin = [7, 4];
+            deepRedDest = [7, 2];
+          } else if (deepRedMove.color === 'B' && deepRedMove.side === 'O-O') {
+            deepRedOrigin = [0, 4];
+            deepRedDest = [0, 6];
+          } else if (deepRedMove.color === 'B' && deepRedMove.side === 'O-O-O') {
+            deepRedOrigin = [0, 4];
+            deepRedDest = [0, 2];
+          }
+        }
       }
-    }
-    this.movePiece(deepRedOrigin, deepRedDest, deepRedPawnPromotionValue, 'default');
+      this.movePiece(deepRedOrigin, deepRedDest, cb, deepRedPawnPromotionValue, 'default');
+    };
+    chooseBestMoveFromDB(encodedBoard, this.turn, callback);
   }
 
 }

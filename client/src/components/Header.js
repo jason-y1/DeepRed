@@ -3,20 +3,20 @@ import SettingsDrawer from '../components/SettingsDrawer';
 
 import './css/Header.css';
 
-const Header = ({ sendPauseRequest, sendResumeRequest, handleSurrender }) => (
+const Header = ({ sendPauseRequest, sendResumeRequest, handleSurrender, handleLobbyOpen }) => (
   <div className="header">
     <table>
       <tbody>
         <tr>
+          <td />
           <td><img className="banner-img" src={'/assets/deepRed-dark-bg.png'} alt={''} /></td>
           <td className="button-cell">
             <SettingsDrawer
               sendResumeRequest={sendResumeRequest}
               sendPauseRequest={sendPauseRequest}
               handleSurrender={handleSurrender}
+              handleLobbyOpen={handleLobbyOpen}
             />
-            <a href="/profile" className="button">Home</a>
-            <a href="/logout" className="button">Logout</a>
           </td>
         </tr>
       </tbody>

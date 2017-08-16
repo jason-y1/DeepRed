@@ -15,17 +15,17 @@ import '../components/css/Room.css';
 const customContentStyle = {
   width: '82%',
   maxWidth: 'none',
-  maxheight:'none',
+  // maxHeight: 'none',
   height: '100%',
   opacity: 0.85,
 };
 
 const Alert = ({ title, open, actions, handleClose, showRooms,
 allRooms, createNewPVPRoom, handleJoinRoomAsBlack, handleJoinRoomAsWhite,
-handleCreateRoomAsWhite, handleCreateRoomAsBlack, thisUser,
+handleCreateRoomAsWhite, handleCreateRoomAsBlack, thisUser, persist,
 messagesGlobal, sendMessageGlobal, sendMessageLocal, messagesLocal, isWhite }) => (
   <div>
-    <Dialog 
+    <Dialog
       title={showRooms === true ?
         <Room
           thisUser={thisUser}
@@ -46,7 +46,7 @@ messagesGlobal, sendMessageGlobal, sendMessageLocal, messagesLocal, isWhite }) =
       autoScrollBodyContent={true}
       autoDetectWindowHeight={true}
       actions={actions}
-      modal={false}
+      modal={persist === true? persist : false}
       open={open}
       onRequestClose={handleClose}
     />
